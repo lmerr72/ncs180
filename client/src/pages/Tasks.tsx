@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { MOCK_EXTENDED_TASKS, type TaskType, type Importance } from "@/lib/mock-data";
+import { type TaskType, type Importance } from "@/lib/mock-data";
+import { useTasks } from "@/context/TasksContext";
 import { CheckCircle2, Circle, Clock, Building2, Mail, Phone, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,14 +23,10 @@ const ALL_TYPES: TaskType[] = ["Prospecting", "Follow-Up", "Training", "Other"];
 const ALL_IMPORTANCE: Importance[] = ["high", "medium", "low"];
 
 export default function Tasks() {
-  const [tasks, setTasks] = useState(MOCK_EXTENDED_TASKS);
+  const { tasks, toggleTask } = useTasks();
   const [typeFilter, setTypeFilter] = useState<TaskType | "All">("All");
   const [importanceFilter, setImportanceFilter] = useState<Importance | "All">("All");
   const [showCompleted, setShowCompleted] = useState(false);
-
-  const toggleTask = (id: string) => {
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  };
 
   const filtered = tasks.filter(t => {
     if (!showCompleted && t.completed) return false;
@@ -209,7 +206,7 @@ export default function Tasks() {
                       <Building2 className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                       {task.associatedCompanyId ? (
                         <Link
-                          to={`/clients/${task.associatedCompanyId}?from=tasks`}
+                          to={`/clients/${task.associatedCompanyId}?from=${task.associatedCompanyOrigin ?? "all-clients"}`}
                           className="text-xs font-semibold text-primary hover:underline transition-colors"
                         >
                           {task.associatedCompanyName}

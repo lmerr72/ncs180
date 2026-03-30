@@ -1,19 +1,18 @@
-import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { MOCK_TASKS, MOCK_MEETINGS, MOCK_EVENTS, MOCK_GOALS, MOCK_USER } from "@/lib/mock-data";
+import { GraphqlStatusCard } from "@/components/graphql/GraphqlStatusCard";
+import { MOCK_MEETINGS, MOCK_EVENTS, MOCK_GOALS } from "@/lib/mock-data";
 import { CheckCircle2, Circle, Calendar as CalendarIcon, MapPin, Clock, ArrowUpRight, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useTasks } from "@/context/TasksContext";
+import { useAuth } from "@/context/AuthContext";
 import { 
   RadialBarChart, RadialBar, ResponsiveContainer, PolarAngleAxis,
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Cell 
 } from "recharts";
 
 export default function Dashboard() {
-  const [tasks, setTasks] = useState(MOCK_TASKS);
-
-  const toggleTask = (id: string) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
-  };
+  const { tasks, toggleTask } = useTasks();
+  const { user } = useAuth();
 
   const completedCount = tasks.filter(t => t.completed).length;
 
@@ -21,11 +20,12 @@ export default function Dashboard() {
     <AppLayout>
       <div className="mb-8">
         <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1 text-lg">Welcome back, {MOCK_USER.firstName}. Here's what's happening today.</p>
+        <p className="text-muted-foreground mt-1 text-lg">Welcome back, {user?.firstName}. Here's what's happening today.</p>
       </div>
 
+      <GraphqlStatusCard />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         {/* Goals Widget - Spans 2 cols on lg screens */}
         <div className="lg:col-span-2 bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col relative z-0">
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -z-10 translate-x-1/3 -translate-y-1/3" />
@@ -133,11 +133,11 @@ export default function Dashboard() {
                     {!task.completed && (
                       <span className={cn(
                         "text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded",
-                        task.priority === "high"   ? "bg-destructive/10 text-destructive" :
-                        task.priority === "medium" ? "bg-amber-100 text-amber-700" :
+                        task.importance === "high"   ? "bg-destructive/10 text-destructive" :
+                        task.importance === "medium" ? "bg-amber-100 text-amber-700" :
                                                      "bg-slate-100 text-slate-600"
                       )}>
-                        {task.priority}
+                        {task.importance}
                       </span>
                     )}
                   </div>

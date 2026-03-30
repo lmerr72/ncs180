@@ -19,7 +19,7 @@ export default function SignIn() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [username, setUsername] = useState("");
+  const [email, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -28,16 +28,16 @@ export default function SignIn() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!username.trim() || !password) {
-      setError("Please enter your username and password.");
+    if (!email.trim() || !password) {
+      setError("Please enter your email and password.");
       return;
     }
     setLoading(true);
     setTimeout(() => {
-      const ok = login(username, password);
+      const ok = login(email, password);
       setLoading(false);
       if (!ok) {
-        setError("Invalid username or password. Please try again.");
+        setError("Invalid email or password. Please try again.");
       } else {
         navigate("/");
       }
@@ -97,10 +97,10 @@ export default function SignIn() {
                 </label>
                 <input
                   type="text"
-                  autoComplete="username"
-                  value={username}
+                  autoComplete="email"
+                  value={email}
                   onChange={e => { setUsername(e.target.value); setError(""); }}
-                  placeholder="Enter your username"
+                  placeholder="Enter your email"
                   className={cn(
                     "w-full px-4 py-3 rounded-xl bg-white/8 border text-white placeholder-white/25 text-sm",
                     "focus:outline-none focus:ring-2 transition-all",
@@ -170,7 +170,7 @@ export default function SignIn() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-0.5">
                   <p className="text-xs font-semibold text-white/70">Sales Rep</p>
-                  <p className="text-xs text-white/40 font-mono">gmarshall / lindsay</p>
+                  <p className="text-xs text-white/40 font-mono">gmarshall@ncs180.com / lindsay</p>
                 </div>
                 <div className="space-y-0.5">
                   <p className="text-xs font-semibold text-white/70">Client</p>

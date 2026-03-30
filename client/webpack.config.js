@@ -42,7 +42,7 @@ module.exports = {
     hot: true,
     proxy: [
       {
-        context: ['/api'],
+        context: ['/api', '/graphql'],
         target: 'http://localhost:3001'
       }
     ]

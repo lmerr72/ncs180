@@ -1,9 +1,14 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useClients } from "@/context/ClientsContext";
 import { Users, Building, Building2, TrendingUp, Filter, Search, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DetailCard } from "@/components/shared/DetailCard";
+import { Client } from "@/types/api";
+import { daysFromToday } from "@/helpers/formatters";
+import { useClients } from "@/context/ClientsContext";
+
+
 
 type SortField = "companyName" | "unitCount" | "totalPlacements" | "placementsThisYear" | null;
 type SortDir = "asc" | "desc";
@@ -30,14 +35,7 @@ function formatMonthYear(dateStr: string | null | undefined): string {
   return `${mm}/${yy}`;
 }
 
-function isOverOneYearAgo(dateStr: string | null | undefined): boolean {
-  if (!dateStr) return false;
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return false;
-  const oneYearAgo = new Date();
-  oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  return d < oneYearAgo;
-}
+
 
 const bucketColors: Record<number, string> = {
   1: "bg-sky-100 text-sky-700 border border-sky-200",
@@ -45,17 +43,29 @@ const bucketColors: Record<number, string> = {
   3: "bg-amber-100 text-amber-700 border border-amber-200",
 };
 
+function enrichClients() {
+
+}
+
 export default function MyClients() {
-  const { myClients: MOCK_MY_CLIENTS } = useClients();
+  const { myClients: assignedClients, loading } = useClients();
+  const myClients = assignedClients.filter((client) => client.status !== "prospecting");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  const totalClients = MOCK_MY_CLIENTS.length;
-  const totalUnits = MOCK_MY_CLIENTS.reduce((sum, client) => sum + client.unitCount, 0);
-  const newThisMonth = 2;
+  const totalClients = myClients.length;
+  const totalUnits = myClients.reduce((sum, client) => sum + client.unitCount, 0);
+  const newThisMonth = myClients.filter((client) => {
+    const created = new Date(client.createdDate);
+    const now = new Date();
+    return (
+      created.getMonth() === now.getMonth() &&
+      created.getFullYear() === now.getFullYear()
+    );
+  }).length;
 
-  const filtered = MOCK_MY_CLIENTS.filter(c =>
+  const filtered = myClients.filter(c =>
     c.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.clientId.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -71,11 +81,11 @@ export default function MyClients() {
       valA = a.unitCount;
       valB = b.unitCount;
     } else if (sortField === "totalPlacements") {
-      valA = a.totalPlacements;
-      valB = b.totalPlacements;
+      valA = 0;
+      valB = 0;
     } else {
-      valA = a.placementsThisYear;
-      valB = b.placementsThisYear;
+      valA = 0;
+      valB = 0;
     }
     if (typeof valA === "string" && typeof valB === "string") {
       return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
@@ -90,7 +100,7 @@ export default function MyClients() {
   }
 
   const stats = [
-    { label: "Total My Clients", value: totalClients, icon: Users, color: "text-blue-600", bg: "bg-blue-100" },
+    { label: "Total Clients", value: totalClients, icon: Users, color: "text-blue-600", bg: "bg-blue-100" },
     { label: "Total Units", value: totalUnits.toLocaleString(), icon: Building2, color: "text-indigo-600", bg: "bg-indigo-100" },
     { label: "New This Month", value: newThisMonth, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-100" },
   ];
@@ -104,19 +114,18 @@ export default function MyClients() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {stats.map((stat, i) => (
-          <div key={i} className="bg-card rounded-2xl p-6 border border-border shadow-sm flex items-center gap-5 hover-elevate">
-            <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center", stat.bg)}>
-              <stat.icon className={cn("w-7 h-7", stat.color)} />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
-              <p className="text-3xl font-display font-bold text-foreground mt-0.5">{stat.value}</p>
-            </div>
-          </div>
+          <DetailCard 
+            icon={stat.icon}
+            label={stat.label}
+            value={stat.value.toString()}
+            color={stat.color}
+            bg={stat.bg}
+          />
+        
         ))}
       </div>
 
-      <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
+      <div className="mb-4 bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
         <div className="p-4 border-b border-border/50 flex flex-col sm:flex-row justify-between items-center gap-4 bg-muted/10">
           <div className="relative w-full sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -134,11 +143,11 @@ export default function MyClients() {
           </button>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[65vh] overflow-x-auto overflow-y-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-muted/30 border-b border-border/50 text-xs uppercase tracking-wider text-muted-foreground font-semibold">
-                <th className="px-6 py-4">
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-muted/80">
                   <button
                     onClick={() => handleSort("companyName")}
                     className="flex items-center gap-1.5 hover:text-foreground transition-colors"
@@ -147,8 +156,8 @@ export default function MyClients() {
                     <SortIcon field="companyName" activeField={sortField} dir={sortDir} />
                   </button>
                 </th>
-                <th className="px-6 py-4">Client ID</th>
-                <th className="px-6 py-4 text-right">
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-muted/80">Client ID</th>
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 text-right backdrop-blur supports-[backdrop-filter]:bg-muted/80">
                   <button
                     onClick={() => handleSort("unitCount")}
                     className="flex items-center gap-1.5 ml-auto hover:text-foreground transition-colors"
@@ -157,9 +166,9 @@ export default function MyClients() {
                     <SortIcon field="unitCount" activeField={sortField} dir={sortDir} />
                   </button>
                 </th>
-                <th className="px-6 py-4">First Placement</th>
-                <th className="px-6 py-4">Last Placement</th>
-                <th className="px-6 py-4 text-right">
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-muted/80">First Placement</th>
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-muted/80">Last Placement</th>
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 text-right backdrop-blur supports-[backdrop-filter]:bg-muted/80">
                   <button
                     onClick={() => handleSort("totalPlacements")}
                     className="flex items-center gap-1.5 ml-auto hover:text-foreground transition-colors"
@@ -168,7 +177,7 @@ export default function MyClients() {
                     <SortIcon field="totalPlacements" activeField={sortField} dir={sortDir} />
                   </button>
                 </th>
-                <th className="px-6 py-4 text-right">
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 text-right backdrop-blur supports-[backdrop-filter]:bg-muted/80">
                   <button
                     onClick={() => handleSort("placementsThisYear")}
                     className="flex items-center gap-1.5 ml-auto hover:text-foreground transition-colors"
@@ -177,13 +186,15 @@ export default function MyClients() {
                     <SortIcon field="placementsThisYear" activeField={sortField} dir={sortDir} />
                   </button>
                 </th>
-                <th className="px-6 py-4 text-right">Recovery Rate</th>
-                <th className="px-6 py-4 text-center">Bucket</th>
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 text-right backdrop-blur supports-[backdrop-filter]:bg-muted/80">Recovery Rate</th>
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 text-center backdrop-blur supports-[backdrop-filter]:bg-muted/80">Bucket</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {filteredClients.map((client) => {
-                const stale = isOverOneYearAgo(client.lastPlacementDate);
+              {filteredClients.map((client:Client) => {
+                const stale = client.mostRecentFilePlacementDate
+                  ? daysFromToday(client.mostRecentFilePlacementDate) > 365
+                  : false;
                 return (
                   <tr key={client.id} className="hover:bg-muted/20 transition-colors group">
                     <td className="px-6 py-4">
@@ -208,38 +219,36 @@ export default function MyClients() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">
-                      {formatMonthYear(client.firstPlacementDate)}
+                      {formatMonthYear(client.firstFilePlacementDate)}
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex items-center gap-1.5">
                         {stale && <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />}
                         <span className={cn("font-medium", stale ? "text-red-600" : "text-muted-foreground")}>
-                          {formatMonthYear(client.lastPlacementDate)}
+                          {formatMonthYear(client.mostRecentFilePlacementDate)}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right text-sm font-medium text-foreground">
-                      {client.totalPlacements.toLocaleString()}
+                      0
                     </td>
                     <td className="px-6 py-4 text-right text-sm font-medium text-foreground">
-                      {client.placementsThisYear.toLocaleString()}
+                      0
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className={cn(
                         "inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold",
-                        client.recoveryRate >= 15 ? "bg-emerald-100 text-emerald-700" :
-                        client.recoveryRate >= 8  ? "bg-sky-100 text-sky-700" :
-                                                    "bg-amber-100 text-amber-700"
+                        "bg-slate-100 text-slate-700"
                       )}>
-                        {client.recoveryRate.toFixed(1)}%
+                        0.0%
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className={cn(
                         "inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold",
-                        bucketColors[client.bucket] ?? "bg-muted text-muted-foreground"
+                        bucketColors[1]
                       )}>
-                        {client.bucket}
+                        1
                       </span>
                     </td>
                   </tr>
@@ -248,7 +257,7 @@ export default function MyClients() {
               {filteredClients.length === 0 && (
                 <tr>
                   <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground">
-                    No clients found matching your search.
+                    {loading ? "Loading clients..." : "No clients found matching your search."}
                   </td>
                 </tr>
               )}

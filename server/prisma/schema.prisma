@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  PROSPECTING
+}
+
+enum ProspectStatus {
+  VERBAL
+  NOT_STARTED
+  IN_COMMUNICATION
+  AWAITING_REVIEW
+  CLOSED
+}
+
+model User {
+  id              String   @id
+  firstName       String
+  lastName        String
+  email           String?  @unique
+  title           String?
+  role            String
+  initials        String
+  assignedClients Client[] @relation("AssignedRep")
+}
+
+model Client {
+  id                        String          @id
+  clientId                  String?         @unique
+  companyName               String
+  assignedRepId             String?
+  assignedRep               User?           @relation("AssignedRep", fields: [assignedRepId], references: [id], onDelete: SetNull)
+  createdDate               DateTime
+  createdClientDate         DateTime?
+  activeClientDate          DateTime?
+  archiveDate               DateTime?
+  dbas                      String[]
+  isCorporate               Boolean         @default(false)
+  corporateId               String
+  firstFilePlacementDate    DateTime?
+  mostRecentFilePlacementDate DateTime?
+  clientStatus              ClientStatus?
+  prospectStatus            ProspectStatus?
+  website                   String?
+  linkedIn                  String?
+  address1                  String?
+  address2                  String?
+  city                      String?
+  state                     String?
+  zipCode                   String?
+  contactIds                String[]
+  unitCount                 Int             @default(0)
+
+  @@index([assignedRepId])
+}
+
+model Contact {
+  id        String   @id
+  firstName String
+  lastName  String
+  title     String?
+  email     String?
+  phone     String?
+  linkedIn  String?
+  isPrimary Boolean  @default(false)
+  clientIds String[]
+}

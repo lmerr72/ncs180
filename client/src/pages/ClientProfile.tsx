@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { gql } from "@apollo/client";
+import { useMutation, useQuery } from "@apollo/client/react";
+import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { MOCK_ALL_CLIENTS, MOCK_MY_CLIENTS, CLIENT_EXTRA_DETAILS, MOCK_USER, MOCK_REPS } from "@/lib/mock-data";
+import { CLIENT_EXTRA_DETAILS } from "@/lib/mock-data";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
   BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -11,17 +13,52 @@ import {
   Building2, MapPin, Hash, Users, BarChart2, TrendingUp, Percent,
   Globe, Phone, Mail, ExternalLink, UserPlus, X, Plus,
   StickyNote, ClipboardList, Clock, Check, ChevronDown,
-  Activity, CircleOff, Search,
+  Activity, CircleOff, Search, CalendarDays, PhoneCall, Circle, CheckCircle2,
+  BriefcaseBusiness, Sparkles, UserRound,
 } from "lucide-react";
+import { DetailCard } from "@/components/shared/DetailCard";
+import { LinkedInIcon, LinkedInUpdatesCard, type LinkedInPostItem } from "@/components/shared/LinkedInUpdatesCard";
 import { cn } from "@/lib/utils";
+import type { Client, UserProfile } from "@/types/api";
+import { useTasks } from "@/context/TasksContext";
+import type { Importance, TaskCompanyOrigin } from "@/lib/mock-data";
+import { ClientStatus,TaskType } from "@/types/api";
+import { MOCK_CONTACTS } from "@/data/mock_contacts";
+import { formatLabel, getInitials } from "@/helpers/formatters";
+import { useClients } from "@/context/ClientsContext";
+import { useAuth } from "@/context/AuthContext";
 
-function LinkedInIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-    </svg>
-  );
-}
+const CONTACT_FIELDS = gql`
+  fragment ContactFields on Contact {
+    id
+    firstName
+    lastName
+    title
+    email
+    phone
+    linkedIn
+    isPrimary
+    clientIds
+  }
+`;
+
+const CLIENT_CONTACTS_QUERY = gql`
+  query ClientContacts($clientId: ID!) {
+    contacts(clientId: $clientId) {
+      ...ContactFields
+    }
+  }
+  ${CONTACT_FIELDS}
+`;
+
+const CREATE_CONTACT_MUTATION = gql`
+  mutation CreateContact($clientId: ID!, $input: CreateContactInput!) {
+    createContact(clientId: $clientId, input: $input) {
+      ...ContactFields
+    }
+  }
+  ${CONTACT_FIELDS}
+`;
 
 function formatMonthYear(dateStr: string | null | undefined): string {
   if (!dateStr) return "—";
@@ -40,23 +77,78 @@ function timeAgo(dateStr: string): string {
   return `${mins}m ago`;
 }
 
+function formatCompactNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: value >= 1000 ? 1 : 0,
+  }).format(value);
+}
+
+function formatCurrency(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: value >= 1000000 ? "compact" : "standard",
+    maximumFractionDigits: value >= 1000000 ? 1 : 0,
+  }).format(value);
+}
+
 const bucketColors: Record<number, string> = {
   1: "bg-sky-100 text-sky-700 border border-sky-200",
   2: "bg-violet-100 text-violet-700 border border-violet-200",
   3: "bg-amber-100 text-amber-700 border border-amber-200",
 };
 
-type ClientStatus = "Active" | "Inactive" | "Prospecting";
 type InactiveReason = "Moved to another company" | "Integration issues" | "Not a good fit" | "Other";
 
-type Contact = { id: string; name: string; title: string; email: string; phone: string; linkedin: string; isPrimary?: boolean };
+type Contact = { id: string; firstName: string; lastName: string; title: string; email: string; phone: string; linkedIn: string; isPrimary?: boolean };
 type Note = { id: string; text: string; author: string; timestamp: string };
 type AuditEntry = { id: string; action: string; author: string; timestamp: string; type: "info" | "add" | "edit" | "note" };
-
+type HistoryEntryType = "meeting" | "email" | "call";
+type HistoryEntry = { id: string; type: HistoryEntryType; subject: string; summary: string; actor: string; timestamp: string };
+type ApolloSnapshotResponse = {
+  configured: boolean;
+  matchedAccount: boolean;
+  organization: {
+    name: string;
+    domain: string;
+    website: string;
+    industry: string;
+    employeeCount: number | null;
+    annualRevenue: number | null;
+    location: string;
+    keywords: string[];
+  } | null;
+  owner: {
+    id: string;
+    name: string;
+    email: string;
+    title: string;
+  } | null;
+  openDeals: Array<{
+    id: string;
+    name: string;
+    stage: string;
+    amount: number | null;
+    closeDate: string | null;
+  }>;
+  recentActivity: Array<{
+    id: string;
+    type: string;
+    title: string;
+    summary: string;
+    at: string | null;
+    actor: string;
+  }>;
+  warnings: string[];
+  error?: string;
+};
 const STATUS_CONFIG: Record<ClientStatus, { label: string; icon: React.ElementType; badge: string; dot: string; ring: string }> = {
-  Active:      { label: "Active",      icon: Activity,  badge: "bg-emerald-100 text-emerald-700 border border-emerald-200", dot: "bg-emerald-500", ring: "ring-emerald-300" },
-  Inactive:    { label: "Inactive",    icon: CircleOff, badge: "bg-red-100 text-red-700 border border-red-200",             dot: "bg-red-500",     ring: "ring-red-300"     },
-  Prospecting: { label: "Prospecting", icon: Search,    badge: "bg-amber-100 text-amber-700 border border-amber-200",       dot: "bg-amber-500",   ring: "ring-amber-300"   },
+  active:      { label: "Active",      icon: Activity,  badge: "bg-emerald-100 text-emerald-700 border border-emerald-200", dot: "bg-emerald-500", ring: "ring-emerald-300" },
+  inactive:    { label: "Inactive",    icon: CircleOff, badge: "bg-red-100 text-red-700 border border-red-200",             dot: "bg-red-500",     ring: "ring-red-300"     },
+  prospecting: { label: "Prospecting", icon: Search,    badge: "bg-amber-100 text-amber-700 border border-amber-200",       dot: "bg-amber-500",   ring: "ring-amber-300"   },
 };
 
 const INACTIVE_REASONS: InactiveReason[] = [
@@ -79,26 +171,147 @@ const SEED_NOTES: Note[] = [
   { id: "n2", text: "Q1 renewal discussion went well. They're looking to expand to two more properties in Q3.", author: "Gordon Marshall", timestamp: "2026-02-20T14:15:00Z" },
 ];
 
+const SEED_HISTORY: HistoryEntry[] = [
+  { id: "h1", type: "meeting", subject: "Quarterly business review", summary: "Reviewed placement trends and expansion plans for two new properties.", actor: "Gordon Marshall", timestamp: "2026-03-12T15:00:00Z" },
+  { id: "h2", type: "email", subject: "Follow-up proposal sent", summary: "Sent pricing recap and implementation timeline after the QBR.", actor: "Gordon Marshall", timestamp: "2026-03-12T18:20:00Z" },
+  { id: "h3", type: "call", subject: "Operations check-in", summary: "Confirmed onboarding questions were resolved and next review is set for April.", actor: "Jennifer Walsh", timestamp: "2026-03-05T17:30:00Z" },
+  { id: "h4", type: "email", subject: "Collections performance recap", summary: "Shared February recovery-rate summary with notes on underperforming sites.", actor: "Gordon Marshall", timestamp: "2026-02-28T16:10:00Z" },
+];
+
+const HISTORY_STYLES: Record<HistoryEntryType, { icon: React.ElementType; badge: string; chip: string; label: string }> = {
+  meeting: {
+    icon: CalendarDays,
+    badge: "bg-blue-100 border-blue-300 text-blue-600",
+    chip: "bg-blue-50 text-blue-700 border-blue-200",
+    label: "Meeting",
+  },
+  email: {
+    icon: Mail,
+    badge: "bg-violet-100 border-violet-300 text-violet-600",
+    chip: "bg-violet-50 text-violet-700 border-violet-200",
+    label: "Email",
+  },
+  call: {
+    icon: PhoneCall,
+    badge: "bg-emerald-100 border-emerald-300 text-emerald-600",
+    chip: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    label: "Call",
+  },
+};
+
+const LINKEDIN_POSTS_BY_COMPANY_URL: Record<string, LinkedInPostItem[]> = {
+  "https://www.linkedin.com/company/griffisblessing-inc-": [],
+};
+
+function normalizeLinkedInCompanyUrl(url: string | null | undefined): string {
+  if (!url) return "";
+
+  try {
+    const parsed = new URL(url.trim());
+    parsed.hash = "";
+    parsed.search = "";
+    return parsed.toString().replace(/\/+$/, "").toLowerCase();
+  } catch {
+    return url.trim().replace(/\/+$/, "").toLowerCase();
+  }
+}
+
+function toLinkedInEmbedUrl(postUrl: string): string {
+  if (postUrl.includes("/embed/feed/update/")) return postUrl;
+
+  try {
+    const parsed = new URL(postUrl);
+    if (parsed.hostname.includes("linkedin.com") && parsed.pathname.startsWith("/feed/update/")) {
+      parsed.pathname = parsed.pathname.replace("/feed/update/", "/embed/feed/update/");
+      parsed.search = "";
+      parsed.hash = "";
+      return parsed.toString();
+    }
+  } catch {
+    return postUrl;
+  }
+
+  return postUrl;
+}
+
+function getLinkedInPosts(companyLinkedInUrl: string): LinkedInPostItem[] {
+  const normalizedUrl = normalizeLinkedInCompanyUrl(companyLinkedInUrl);
+  const posts = LINKEDIN_POSTS_BY_COMPANY_URL[normalizedUrl] ?? [];
+
+  return posts
+    .map(post => ({
+      ...post,
+      embedUrl: toLinkedInEmbedUrl(post.embedUrl || post.postUrl),
+    }))
+    .slice(0, 3);
+}
+
+
 export default function ClientProfile() {
   const { id } = useParams();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const { allClients, reps } = useClients();
+  const { user } = useAuth();
   const from = searchParams.get("from");
 
   const fromMyClients = from === "my-clients";
-  const originLabel = fromMyClients ? "My Clients" : "All Clients";
-  const originHref = fromMyClients ? "/my-clients" : "/all-clients";
+  const fromPipeline = from === "pipeline";
+  const originLabel = fromPipeline ? "Pipeline" : fromMyClients ? "My Clients" : "All Clients";
+  const originHref = fromPipeline ? "/pipeline" : fromMyClients ? "/my-clients" : "/all-clients";
 
-  const allClient = MOCK_ALL_CLIENTS.find(c => c.id === id);
-  const myClient = MOCK_MY_CLIENTS.find(c => c.id === id);
-  const client = myClient ?? allClient;
+  const routeState = location.state as { prospect?: Client } | null;
+  const client = allClients.find(c => c.id === id) ?? routeState?.prospect ?? null;
+  const initialAssignedRep = reps.find(r => r.id === client?.assignedRepId) ?? null;
+
   const extra = id ? CLIENT_EXTRA_DETAILS[id] : undefined;
+  const isProspectView = client?.status === 'prospecting';
+  const { tasks, addTask, toggleTask } = useTasks();
+  const extraLinks = extra as ({ website?: string; linkedIn?: string } | undefined);
+  const companyWebsiteUrl = extraLinks?.website ?? client?.website ?? "";
+  const companyLinkedInUrl = extraLinks?.linkedIn ?? extraLinks?.linkedIn ?? client?.linkedIn ?? "";
+  const linkedInPosts = getLinkedInPosts(companyLinkedInUrl);
+  const myClient = allClients.find(
+    (entry) => entry.id === client?.id || entry.companyName === client?.companyName
+  ) ?? null;
+  const { data: contactsData } = useQuery<{ contacts: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    title?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    linkedIn?: string | null;
+    isPrimary?: boolean | null;
+  }> }>(CLIENT_CONTACTS_QUERY, {
+    variables: {
+      clientId: client?.id ?? ""
+    },
+    skip: !client?.id
+  });
+  const [createContactMutation] = useMutation<{
+    createContact: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      title?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      linkedIn?: string | null;
+      isPrimary?: boolean | null;
+    };
+  }>(CREATE_CONTACT_MUTATION);
 
   // Status state
-  const [status, setStatus] = useState<ClientStatus>("Active");
+  const [status, setStatus] = useState<ClientStatus>(isProspectView ? "prospecting" : "active");
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [apolloSnapshot, setApolloSnapshot] = useState<ApolloSnapshotResponse | null>(null);
+  const [apolloLoading, setApolloLoading] = useState(false);
+  const [apolloError, setApolloError] = useState<string | null>(null);
 
   // Assigned rep state
-  const [assignedRep, setAssignedRep] = useState(client?.assignedRep ?? null);
+  const [assignedRep, setAssignedRep] = useState(initialAssignedRep);
   const [repPending, setRepPending] = useState(false);
   const [showRepDropdown, setShowRepDropdown] = useState(false);
   const repDropdownRef = useRef<HTMLDivElement>(null);
@@ -122,7 +335,7 @@ export default function ClientProfile() {
     setTimeout(() => setToast(null), 4000);
   }
 
-  function handleRepSelect(rep: typeof MOCK_REPS[0]) {
+  function handleRepSelect(rep: UserProfile) {
     setAssignedRep(rep);
     setRepPending(true);
     setShowRepDropdown(false);
@@ -131,46 +344,163 @@ export default function ClientProfile() {
   }
 
   // Contacts state — seed from CLIENT_EXTRA_DETAILS
-  const [contacts, setContacts] = useState<Contact[]>(() => {
-    if (!extra) return [];
-    return [{
-      id: "primary",
-      name: extra.primaryContact.name,
-      title: extra.primaryContact.title,
-      email: extra.primaryContact.email,
-      phone: extra.primaryContact.phone,
-      linkedin: extra.primaryContact.linkedin,
-      isPrimary: true,
-    }];
-  });
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [showAddContact, setShowAddContact] = useState(false);
-  const [newContact, setNewContact] = useState({ name: "", title: "", email: "", phone: "", linkedin: "" });
+  const [newContact, setNewContact] = useState({ firstName: "", lastName: "", title: "", email: "", phone: "", linkedIn: "" });
+  const [contactSaving, setContactSaving] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
 
   // Notes state
   const [notes, setNotes] = useState<Note[]>(SEED_NOTES);
   const [noteText, setNoteText] = useState("");
 
+  // Account history state
+  const [history] = useState<HistoryEntry[]>(SEED_HISTORY);
+
   // Audit log state
   const [auditLog, setAuditLog] = useState<AuditEntry[]>(SEED_AUDIT);
+
+  useEffect(() => {
+    const backendContacts = (contactsData?.contacts ?? []).map((contact) => ({
+      id: contact.id,
+      firstName: contact.firstName,
+      lastName: contact.lastName,
+      title: contact.title ?? "",
+      email: contact.email ?? "",
+      phone: contact.phone ?? "",
+      linkedIn: contact.linkedIn ?? "",
+      isPrimary: contact.isPrimary ?? false
+    }));
+
+    if (backendContacts.length > 0) {
+      setContacts(backendContacts);
+      return;
+    }
+
+    if (!extra) {
+      setContacts([]);
+      return;
+    }
+
+    setContacts([{
+      id: "primary",
+      firstName: extra.primaryContact.name.split(" ")[0] ?? "",
+      lastName: extra.primaryContact.name.split(" ").slice(1).join(" "),
+      title: extra.primaryContact.title,
+      email: extra.primaryContact.email,
+      phone: extra.primaryContact.phone,
+      linkedIn: extra.primaryContact.linkedIn,
+      isPrimary: true,
+    }]);
+  }, [contactsData, extra]);
+
+  useEffect(() => {
+    if (!client?.companyName) {
+      setApolloSnapshot(null);
+      setApolloError(null);
+      setApolloLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      companyName: client.companyName,
+    });
+
+    if (companyWebsiteUrl) {
+      params.set("website", companyWebsiteUrl);
+    }
+
+    setApolloLoading(true);
+    setApolloError(null);
+
+    fetch(`/api/apollo/account-snapshot?${params.toString()}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = await response.json() as ApolloSnapshotResponse;
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Unable to load Apollo account snapshot.");
+        }
+
+        setApolloSnapshot(payload);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setApolloSnapshot(null);
+        setApolloError(error instanceof Error ? error.message : "Unable to load Apollo account snapshot.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setApolloLoading(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [client?.companyName, companyWebsiteUrl]);
 
   function addAudit(action: string, type: AuditEntry["type"] = "info") {
     setAuditLog(prev => [{
       id: `a${Date.now()}`,
       action,
-      author: `${MOCK_USER.firstName} ${MOCK_USER.lastName}`,
+      author: `${user?.firstName ?? "Unknown"} ${user?.lastName ?? "User"}`,
       timestamp: new Date().toISOString(),
       type,
     }, ...prev]);
   }
 
-  function handleAddContact(e: React.FormEvent) {
+  async function handleAddContact(e: React.FormEvent) {
     e.preventDefault();
-    if (!newContact.name.trim()) return;
-    const contact: Contact = { id: `c${Date.now()}`, ...newContact };
-    setContacts(prev => [...prev, contact]);
-    addAudit(`Added new contact: ${newContact.name}`, "add");
-    setNewContact({ name: "", title: "", email: "", phone: "", linkedin: "" });
-    setShowAddContact(false);
+    if (!newContact.firstName.trim() || !newContact.lastName.trim() || !client?.id) return;
+    setContactSaving(true);
+    setContactError(null);
+
+    try {
+      const response = await createContactMutation({
+        variables: {
+          clientId: client.id,
+          input: {
+            firstName: newContact.firstName.trim(),
+            lastName: newContact.firstName.trim(),
+            title: newContact.title.trim() || undefined,
+            email: newContact.email.trim() || undefined,
+            phone: newContact.phone.trim() || undefined,
+            linkedIn: newContact.linkedIn.trim() || undefined,
+            isPrimary: contacts.length === 0
+          }
+        }
+      });
+
+      const created = response.data?.createContact;
+      if (!created) {
+        throw new Error("Contact creation did not return a record.");
+      }
+
+      const contact: Contact = {
+        id: created.id,
+        firstName: created.firstName,
+        lastName: created.lastName,
+        title: created.title ?? "",
+        email: created.email ?? "",
+        phone: created.phone ?? "",
+        linkedIn: created.linkedIn ?? "",
+        isPrimary: created.isPrimary ?? false
+      };
+      setContacts(prev => [...prev, contact]);
+      addAudit(`Added new contact: ${contact.firstName} ${contact.lastName}`, "add");
+      setNewContact({ firstName: "", lastName: "", title: "", email: "", phone: "", linkedIn: "" });
+      setShowAddContact(false);
+      showToast("Contact added");
+    } catch (error) {
+      setContactError(error instanceof Error ? error.message : "Unable to add contact.");
+    } finally {
+      setContactSaving(false);
+    }
   }
 
   function handleAddNote(e: React.FormEvent) {
@@ -179,12 +509,27 @@ export default function ClientProfile() {
     const note: Note = {
       id: `n${Date.now()}`,
       text: noteText.trim(),
-      author: `${MOCK_USER.firstName} ${MOCK_USER.lastName}`,
+      author: `${user?.firstName ?? "Unknown"} ${user?.lastName ?? "User"}`,
       timestamp: new Date().toISOString(),
     };
     setNotes(prev => [note, ...prev]);
     addAudit("Added a note", "note");
     setNoteText("");
+  }
+
+  function getContactDetailHref(contact: Contact): string | null {
+    if (contact.id && contact.id !== 'primary') {
+      return `/contacts/${contact.id}?fromClientId=${client?.id ?? ""}&fromClientName=${encodeURIComponent(client?.companyName ?? "")}`;
+    }
+
+    const matchedContact = MOCK_CONTACTS.find(entry =>
+      entry.email.toLowerCase() === contact.email.toLowerCase()
+      || entry.linkedIn?.toLowerCase() === contact.linkedIn?.toLowerCase(),
+    );
+
+    if (!matchedContact) return null;
+
+    return `/contacts/${matchedContact.id}?fromClientId=${client?.id ?? ""}&fromClientName=${encodeURIComponent(client?.companyName ?? "")}`;
   }
 
   if (!client) {
@@ -200,7 +545,7 @@ export default function ClientProfile() {
   }
 
   const repName = assignedRep ? `${assignedRep.firstName} ${assignedRep.lastName}` : "—";
-  const hasExtended = !!myClient;
+  const hasExtended = false; // hippo replace
   const repInitials = assignedRep ? `${assignedRep.firstName[0]}${assignedRep.lastName[0]}` : "?";
 
   function handleStatusSave(newStatus: ClientStatus, reason?: string, notes?: string) {
@@ -209,21 +554,46 @@ export default function ClientProfile() {
     setShowStatusModal(false);
     if (newStatus === prev) return;
     let msg = `Status changed from ${prev} to ${newStatus}`;
-    if (newStatus === "Inactive" && reason) msg += ` — Reason: ${reason}`;
+    if (newStatus === "inactive" && reason) msg += ` — Reason: ${reason}`;
     addAudit(msg, "edit");
-    if (newStatus === "Inactive" && notes) {
+    if (newStatus === "inactive" && notes) {
       const note: Note = {
         id: `n${Date.now()}`,
         text: `[Inactivation note] ${notes}`,
-        author: `${MOCK_USER.firstName} ${MOCK_USER.lastName}`,
+        author: `${user?.firstName ?? "Unknown"} ${user?.lastName ?? "User"}`,
         timestamp: new Date().toISOString(),
       };
       setNotes(prev => [note, ...prev]);
     }
   }
 
+  function handleCreateTask(data: { taskType: TaskType; importance: Importance; dueDate: string; notes: string }) {
+    const associatedCompanyOrigin: TaskCompanyOrigin = fromPipeline
+      ? "pipeline"
+      : fromMyClients
+        ? "my-clients"
+        : "all-clients";
+
+    addTask({
+      ...data,
+      associatedCompanyName: client.companyName,
+      associatedCompanyId: client.id,
+      associatedCompanyOrigin,
+    });
+    setShowAddTaskModal(false);
+    showToast("Task added to Tasks");
+  }
+
   const statusCfg = STATUS_CONFIG[status];
   const StatusIcon = statusCfg.icon;
+  const relatedTasks = tasks.filter(task => task.associatedCompanyId === client.id);
+  const apolloStatusMessage = (() => {
+    if (apolloLoading) return "Loading Apollo account data...";
+    if (apolloError) return apolloError;
+    if (!apolloSnapshot?.configured) return "Add your Apollo API key in the server env to load account insights here.";
+    if (!apolloSnapshot.matchedAccount && !apolloSnapshot.organization) return "Apollo did not return a matching account for this client yet.";
+    return null;
+  })();
 
   return (
     <AppLayout>
@@ -232,6 +602,13 @@ export default function ClientProfile() {
           current={status}
           onSave={handleStatusSave}
           onClose={() => setShowStatusModal(false)}
+        />
+      )}
+      {showAddTaskModal && (
+        <AddTaskModal
+          companyName={client.companyName}
+          onClose={() => setShowAddTaskModal(false)}
+          onSave={handleCreateTask}
         />
       )}
 
@@ -292,9 +669,8 @@ export default function ClientProfile() {
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Reassign Rep</p>
               </div>
               <div className="max-h-64 overflow-y-auto py-1.5">
-                {MOCK_REPS.filter(r => r.id !== "u3").map(rep => {
+                {reps.filter(r => r.id !== assignedRep?.id).map(rep => {
                   const isCurrentRep = rep.id === assignedRep?.id;
-                  const initials = `${rep.firstName[0]}${rep.lastName[0]}`;
                   return (
                     <button
                       key={rep.id}
@@ -308,11 +684,11 @@ export default function ClientProfile() {
                       )}
                     >
                       <span className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold flex-shrink-0">
-                        {initials}
+                        {getInitials(rep.firstName,rep.lastName)}
                       </span>
                       <div className="min-w-0">
                         <p className="font-semibold truncate">{rep.firstName} {rep.lastName}</p>
-                        <p className="text-xs text-muted-foreground truncate">{rep.role}</p>
+                        <p className="text-xs text-muted-foreground truncate">{rep.title}</p>
                       </div>
                       {isCurrentRep && <Check className="w-3.5 h-3.5 ml-auto text-primary flex-shrink-0" />}
                     </button>
@@ -355,18 +731,25 @@ export default function ClientProfile() {
           <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">{client.companyName}</h1>
           <p className="text-muted-foreground mt-1 text-lg font-mono">{client.clientId}</p>
         </div>
-        {extra && (
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <a href={extra.website} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-muted/30 transition-all shadow-sm">
-              <Globe className="w-4 h-4 text-primary" />Website<ExternalLink className="w-3 h-3 opacity-50" />
-            </a>
-            <a href={extra.linkedin} target="_blank" rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-sm font-medium text-muted-foreground hover:text-[#0A66C2] hover:border-[#0A66C2]/30 hover:bg-blue-50/50 transition-all shadow-sm">
-              <LinkedInIcon className="w-4 h-4 text-[#0A66C2]" />LinkedIn<ExternalLink className="w-3 h-3 opacity-50" />
-            </a>
-          </div>
-        )}
+        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+          {(companyWebsiteUrl || companyLinkedInUrl) && (
+            <>
+              {companyWebsiteUrl && (
+                <a href={companyWebsiteUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-muted/30 transition-all shadow-sm">
+                  <Globe className="w-4 h-4 text-primary" />Website<ExternalLink className="w-3 h-3 opacity-50" />
+                </a>
+              )}
+              {companyLinkedInUrl && (
+                <a href={companyLinkedInUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-sm font-medium text-muted-foreground hover:text-[#0A66C2] hover:border-[#0A66C2]/30 hover:bg-blue-50/50 transition-all shadow-sm">
+                  <LinkedInIcon className="w-4 h-4 text-[#0A66C2]" />LinkedIn<ExternalLink className="w-3 h-3 opacity-50" />
+                </a>
+              )}
+            </>
+          )}
+        </div>
+        
       </div>
 
       <div className="space-y-8">
@@ -394,10 +777,12 @@ export default function ClientProfile() {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">New Contact</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                 {[
-                  { key: "name", placeholder: "Full Name *", required: true },
+                  { key: "firstName", placeholder: "First Name *", required: true },
+                  { key: "lastName", placeholder: "Last Name *", required: true },
                   { key: "title", placeholder: "Job Title" },
-                  { key: "email", placeholder: "Email Address" },
+                  { key: "email", placeholder: "Email Address", required:true },
                   { key: "phone", placeholder: "Phone Number" },
+                  { key: "linkedIn", placeholder: "LinkedIn URL" },
                 ].map(({ key, placeholder, required }) => (
                   <input
                     key={key}
@@ -409,17 +794,13 @@ export default function ClientProfile() {
                     className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
                   />
                 ))}
-                <input
-                  type="text"
-                  placeholder="LinkedIn URL"
-                  value={newContact.linkedin}
-                  onChange={e => setNewContact(prev => ({ ...prev, linkedin: e.target.value }))}
-                  className="w-full sm:col-span-2 px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-                />
               </div>
+              {contactError && (
+                <p className="mb-4 text-sm text-destructive">{contactError}</p>
+              )}
               <div className="flex justify-end">
-                <button type="submit" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors">
-                  <Check className="w-4 h-4" /> Save Contact
+                <button type="submit" disabled={contactSaving} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                  <Check className="w-4 h-4" /> {contactSaving ? "Saving..." : "Save Contact"}
                 </button>
               </div>
             </form>
@@ -430,19 +811,47 @@ export default function ClientProfile() {
             {contacts.length === 0 && (
               <p className="px-6 py-8 text-center text-sm text-muted-foreground">No contacts yet — add one above.</p>
             )}
-            {contacts.map(contact => (
-              <div key={contact.id} className="px-6 py-5 flex items-start gap-5">
-                <div className="w-11 h-11 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
-                  {contact.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                    <p className="font-bold text-foreground">{contact.name}</p>
-                    {contact.isPrimary && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold border border-primary/20">Primary</span>
-                    )}
-                  </div>
-                  {contact.title && <p className="text-xs text-muted-foreground mb-3">{contact.title}</p>}
+            {contacts.map(contact => {
+              const contactHref = getContactDetailHref(contact);
+
+              return (
+                <div key={contact.id} className="px-6 py-5 flex items-start gap-5">
+                  {contactHref ? (
+                    <Link
+                      to={contactHref}
+                      className="flex flex-1 items-start gap-5 min-w-0 rounded-2xl -m-2 p-2 hover:bg-primary/5 transition-colors"
+                    >
+                      <div className="w-11 h-11 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
+                        {getInitials(contact.firstName,contact.lastName)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          <p className="font-bold text-foreground hover:text-primary transition-colors">
+                            {contact.firstName} {contact.lastName}
+                          </p>
+                          {contact.isPrimary && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold border border-primary/20">Primary</span>
+                          )}
+                        </div>
+                        {contact.title && <p className="text-xs text-muted-foreground mb-3">{contact.title}</p>}
+                      </div>
+                    </Link>
+                  ) : (
+                    <>
+                      <div className="w-11 h-11 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
+                        {getInitials(contact.firstName, contact.lastName)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          <p className="font-bold text-foreground">{contact.firstName} {contact.lastName}</p>
+                          {contact.isPrimary && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold border border-primary/20">Primary</span>
+                          )}
+                        </div>
+                        {contact.title && <p className="text-xs text-muted-foreground mb-3">{contact.title}</p>}
+                      </div>
+                    </>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     {contact.phone && (
                       <a href={`tel:${contact.phone}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/20 text-xs font-medium text-foreground hover:text-primary hover:border-primary/30 transition-all">
@@ -454,8 +863,8 @@ export default function ClientProfile() {
                         <Mail className="w-3.5 h-3.5" />{contact.email}
                       </a>
                     )}
-                    {contact.linkedin && (
-                      <a href={contact.linkedin} target="_blank" rel="noopener noreferrer"
+                    {contact.linkedIn && (
+                      <a href={contact.linkedIn} target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/20 text-xs font-medium text-foreground hover:text-[#0A66C2] hover:border-[#0A66C2]/30 transition-all">
                         <LinkedInIcon className="w-3.5 h-3.5 text-[#0A66C2]" />LinkedIn
                         <ExternalLink className="w-3 h-3 opacity-50" />
@@ -463,8 +872,8 @@ export default function ClientProfile() {
                     )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -472,12 +881,18 @@ export default function ClientProfile() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <DetailCard icon={MapPin} label="Headquarters" value={client.headquarters} color="text-blue-600" bg="bg-blue-100" />
           <DetailCard icon={Building2} label="Unit Count" value={client.unitCount.toLocaleString()} color="text-indigo-600" bg="bg-indigo-100" />
-          <DetailCard icon={Hash} label="Client ID" value={client.clientId} color="text-slate-600" bg="bg-slate-100" mono />
-          <DetailCard icon={TrendingUp} label="First Placement" value={formatMonthYear(client.firstPlacementDate)} color="text-violet-600" bg="bg-violet-100" />
-          <DetailCard icon={TrendingUp} label="Last Placement" value={formatMonthYear(client.lastPlacementDate)} color="text-pink-600" bg="bg-pink-100" />
+          {!isProspectView && (
+            <DetailCard icon={Hash} label="Client ID" value={client.clientId} color="text-slate-600" bg="bg-slate-100" mono />
+          )}
+          {!isProspectView && (
+            <DetailCard icon={TrendingUp} label="First Placement" value={formatMonthYear(client.firstPlacementDate)} color="text-violet-600" bg="bg-violet-100" />
+          )}
+          {!isProspectView && (
+            <DetailCard icon={TrendingUp} label="Last Placement" value={formatMonthYear(client.lastPlacementDate)} color="text-pink-600" bg="bg-pink-100" />
+          )}
           {hasExtended && myClient && (
             <>
-              <DetailCard icon={BarChart2} label="Total Placements" value={myClient.totalPlacements.toLocaleString()} color="text-amber-600" bg="bg-amber-100" />
+              <DetailCard icon={BarChart2} label="Total Placements" value={(myClient.totalPlacements ?? 0).toString()} color="text-amber-600" bg="bg-amber-100" />
               <DetailCard icon={BarChart2} label="Placements This Year" value={myClient.placementsThisYear.toLocaleString()} color="text-orange-600" bg="bg-orange-100" />
               <DetailCard icon={Percent} label="Recovery Rate" value={`${myClient.recoveryRate.toFixed(1)}%`} color="text-teal-600" bg="bg-teal-100" />
               <div className="bg-card rounded-2xl p-6 border border-border shadow-sm flex items-center gap-5 hover-elevate">
@@ -495,7 +910,270 @@ export default function ClientProfile() {
           )}
         </div>
 
-        {/* ── 3. NOTES + AUDIT LOG (side by side) ────────────────────── */}
+        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Apollo Account Snapshot</h2>
+            </div>
+            {apolloSnapshot?.owner && (
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border bg-background text-xs text-muted-foreground">
+                <UserRound className="w-3.5 h-3.5 text-primary" />
+                <span className="font-semibold text-foreground">{apolloSnapshot.owner.name}</span>
+                {apolloSnapshot.owner.title && <span>{apolloSnapshot.owner.title}</span>}
+              </div>
+            )}
+          </div>
+
+          {apolloStatusMessage ? (
+            <div className="px-6 py-8 text-sm text-muted-foreground">
+              {apolloStatusMessage}
+            </div>
+          ) : (
+            <div className="px-6 py-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="rounded-2xl border border-border bg-muted/10 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Industry</p>
+                  <p className="mt-2 text-lg font-display font-semibold text-foreground">
+                    {apolloSnapshot?.organization?.industry || "—"}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-border bg-muted/10 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Employees</p>
+                  <p className="mt-2 text-lg font-display font-semibold text-foreground">
+                    {formatCompactNumber(apolloSnapshot?.organization?.employeeCount)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-border bg-muted/10 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Revenue</p>
+                  <p className="mt-2 text-lg font-display font-semibold text-foreground">
+                    {formatCurrency(apolloSnapshot?.organization?.annualRevenue)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-border bg-muted/10 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">HQ / Domain</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">
+                    {apolloSnapshot?.organization?.location || apolloSnapshot?.organization?.domain || "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div className="rounded-2xl border border-border overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border/50 bg-muted/20 flex items-center gap-2">
+                    <BriefcaseBusiness className="w-4 h-4 text-primary" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">Open Deals</h3>
+                    <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
+                      {apolloSnapshot?.openDeals.length ?? 0}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-border/40">
+                    {(apolloSnapshot?.openDeals.length ?? 0) === 0 && (
+                      <p className="px-4 py-5 text-sm text-muted-foreground">Apollo did not return any open deals for this account.</p>
+                    )}
+                    {apolloSnapshot?.openDeals.map((deal) => (
+                      <div key={deal.id} className="px-4 py-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-foreground">{deal.name}</p>
+                          <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                            {deal.stage}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {formatCurrency(deal.amount)}
+                          {deal.closeDate ? ` · closes ${formatMonthYear(deal.closeDate)}` : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border overflow-hidden">
+                  <div className="px-4 py-3 border-b border-border/50 bg-muted/20 flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-primary" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">Recent Activity</h3>
+                    <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
+                      {apolloSnapshot?.recentActivity.length ?? 0}
+                    </span>
+                  </div>
+                  <div className="divide-y divide-border/40">
+                    {(apolloSnapshot?.recentActivity.length ?? 0) === 0 && (
+                      <p className="px-4 py-5 text-sm text-muted-foreground">Apollo did not return recent activity for this account.</p>
+                    )}
+                    {apolloSnapshot?.recentActivity.map((entry) => (
+                      <div key={entry.id} className="px-4 py-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-foreground">{entry.title}</p>
+                          <span className="inline-flex items-center rounded-full border border-border bg-muted/20 px-2 py-0.5 text-[11px] font-bold text-muted-foreground">
+                            {entry.type}
+                          </span>
+                        </div>
+                        {entry.summary && (
+                          <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{entry.summary}</p>
+                        )}
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {entry.actor ? `${entry.actor} · ` : ""}
+                          {entry.at ? timeAgo(entry.at) : "Timestamp unavailable"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {(apolloSnapshot?.organization?.keywords.length ?? 0) > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {apolloSnapshot?.organization?.keywords.map((keyword) => (
+                    <span
+                      key={keyword}
+                      className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700"
+                    >
+                      {keyword}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {(apolloSnapshot?.warnings.length ?? 0) > 0 && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  {apolloSnapshot?.warnings.join(" ")}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── 3. TASKS ───────────────────────────────────────────────── */}
+        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
+          <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-primary" />
+              <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Tasks</h2>
+              <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">{relatedTasks.length}</span>
+            </div>
+            <button
+              onClick={() => setShowAddTaskModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow-sm"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Task
+            </button>
+          </div>
+
+          <div className="divide-y divide-border/40">
+            {relatedTasks.length === 0 && (
+              <p className="px-6 py-8 text-center text-sm text-muted-foreground">
+                No tasks for this {isProspectView ? "prospect" : "client"} yet.
+              </p>
+            )}
+            {relatedTasks.map(task => (
+              <div key={task.id} className="px-6 py-4 flex items-start gap-4 hover:bg-muted/20 transition-colors">
+                <button
+                  onClick={() => toggleTask(task.id)}
+                  className="mt-0.5 flex-shrink-0 text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {task.completed
+                    ? <CheckCircle2 className="w-5 h-5 text-primary" />
+                    : <Circle className="w-5 h-5" />
+                  }
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border bg-violet-100 text-violet-700 border-violet-200">
+                      {task.taskType}
+                    </span>
+                    <span className={cn(
+                      "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border capitalize",
+                      task.importance === "high" && "bg-red-100 text-red-700 border-red-200",
+                      task.importance === "medium" && "bg-amber-100 text-amber-700 border-amber-200",
+                      task.importance === "low" && "bg-slate-100 text-slate-500 border-slate-200",
+                    )}>
+                      {task.importance}
+                    </span>
+                    {task.commType === "email" && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border bg-blue-50 text-blue-600 border-blue-200">
+                        <Mail className="w-3 h-3" />
+                        Email
+                      </span>
+                    )}
+                    {task.commType === "phone" && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border bg-emerald-50 text-emerald-600 border-emerald-200">
+                        <Phone className="w-3 h-3" />
+                        Phone
+                      </span>
+                    )}
+                    <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground font-medium">
+                      <Clock className="w-3.5 h-3.5" />
+                      {task.dueDate}
+                    </span>
+                  </div>
+                  <p className={cn(
+                    "text-sm font-semibold leading-snug",
+                    task.completed ? "text-muted-foreground line-through" : "text-foreground",
+                  )}>
+                    {task.title}
+                  </p>
+                  <p className="text-xs text-muted-foreground leading-relaxed mt-1.5">
+                    {task.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── 4. ACCOUNT HISTORY ─────────────────────────────────────── */}
+        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
+          <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center gap-2">
+            <Activity className="w-4 h-4 text-primary" />
+            <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">History</h2>
+            <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">{history.length}</span>
+          </div>
+
+          <div className="flex-1 overflow-y-auto max-h-96">
+            {history.length === 0 && (
+              <p className="px-6 py-8 text-center text-sm text-muted-foreground">No meetings, emails, or calls recorded yet.</p>
+            )}
+            <div className="relative">
+              <div className="absolute left-[2.35rem] top-0 bottom-0 w-px bg-border/60" />
+              {history.map(entry => {
+                const config = HISTORY_STYLES[entry.type];
+                const Icon = config.icon;
+
+                return (
+                  <div key={entry.id} className="flex items-start gap-4 px-5 py-4 relative hover:bg-muted/20 transition-colors">
+                    <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 z-10 border-2", config.badge)}>
+                      <Icon className="w-2.5 h-2.5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                        <p className="text-sm text-foreground font-medium leading-snug">{entry.subject}</p>
+                        <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide", config.chip)}>
+                          {config.label}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{entry.summary}</p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-2">
+                        <Clock className="w-3 h-3" />
+                        {entry.actor} · {timeAgo(entry.timestamp)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* ── 5. LINKEDIN UPDATES ────────────────────────────────────── */}
+        <LinkedInUpdatesCard
+          companyLinkedInUrl={companyLinkedInUrl}
+          posts={linkedInPosts}
+          emptyMessage={'Company page feed cannot be embedded directly from the company URL. Add three public post URLs or embed URLs for this company to render them here.'}
+          openLabel="Open Company Page"
+        />
+
+        {/* ── 6. NOTES + AUDIT LOG (side by side) ────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
           {/* Notes */}
@@ -591,21 +1269,7 @@ export default function ClientProfile() {
   );
 }
 
-function DetailCard({ icon: Icon, label, value, color, bg, mono }: {
-  icon: React.ElementType; label: string; value: string; color: string; bg: string; mono?: boolean;
-}) {
-  return (
-    <div className="bg-card rounded-2xl p-6 border border-border shadow-sm flex items-center gap-5 hover-elevate">
-      <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0", bg)}>
-        <Icon className={cn("w-7 h-7", color)} />
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <p className={cn("text-xl font-display font-bold text-foreground mt-0.5 truncate", mono && "font-mono text-base")}>{value}</p>
-      </div>
-    </div>
-  );
-}
+
 
 // ── Status Change Modal ──────────────────────────────────────────────────────
 
@@ -622,8 +1286,8 @@ function StatusModal({
   const [reason, setReason] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
-  const needsInactiveFields = selected === "Inactive";
-  const isValid = selected !== "Inactive" || (reason.trim() !== "" && notes.trim() !== "");
+  const needsInactiveFields = selected === "inactive";
+  const isValid = selected !== "inactive" || (reason.trim() !== "" && notes.trim() !== "");
 
   function handleSave() {
     if (!isValid) return;
@@ -641,7 +1305,7 @@ function StatusModal({
           <div>
             <h2 className="text-lg font-bold text-foreground">Change Client Status</h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Current: <span className={cn("font-semibold", STATUS_CONFIG[current].badge.split(" ")[1])}>{current}</span>
+              Current: <span className={cn("font-semibold", STATUS_CONFIG[current].badge.split(" ")[1])}>{formatLabel(current)}</span>
             </p>
           </div>
           <button
@@ -656,7 +1320,7 @@ function StatusModal({
           {/* Status radio options */}
           <div className="space-y-2.5">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select Status</p>
-            {(["Active", "Inactive", "Prospecting"] as ClientStatus[]).map(s => {
+            {(["active", "inactive", "prospecting"] as ClientStatus[]).map(s => {
               const cfg = STATUS_CONFIG[s];
               const Icon = cfg.icon;
               const isChosen = selected === s;
@@ -664,7 +1328,7 @@ function StatusModal({
                 <button
                   key={s}
                   type="button"
-                  onClick={() => { setSelected(s); if (s !== "Inactive") { setReason(""); setNotes(""); } }}
+                  onClick={() => { setSelected(s); if (s !== "inactive") { setReason(""); setNotes(""); } }}
                   className={cn(
                     "w-full flex items-center gap-3.5 px-4 py-3.5 rounded-xl border-2 text-left transition-all",
                     isChosen
@@ -688,11 +1352,11 @@ function StatusModal({
                   </div>
 
                   <div className="flex-1">
-                    <p className={cn("font-semibold text-sm", isChosen ? "text-foreground" : "text-foreground")}>{s}</p>
+                    <p className={cn("font-semibold text-sm", isChosen ? "text-foreground" : "text-foreground")}>{formatLabel(s)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {s === "Active" && "Client is actively engaged and placing"}
-                      {s === "Inactive" && "Client has stopped activity — requires reason"}
-                      {s === "Prospecting" && "Client is in early-stage outreach"}
+                      {s === "active" && "Client is actively engaged and placing"}
+                      {s === "inactive" && "Client has stopped activity — requires reason"}
+                      {s === "prospecting" && "Client is in early-stage outreach"}
                     </p>
                   </div>
 
@@ -766,5 +1430,135 @@ function StatusModal({
       </div>
     </div>,
     document.body
+  );
+}
+
+function AddTaskModal({
+  companyName,
+  onSave,
+  onClose,
+}: {
+  companyName: string;
+  onSave: (data: { taskType: TaskType; importance: Importance; dueDate: string; notes: string }) => void;
+  onClose: () => void;
+}) {
+  const [taskType, setTaskType] = useState<TaskType>("Follow-Up");
+  const [importance, setImportance] = useState<Importance>("medium");
+  const [dueDate, setDueDate] = useState<string>(() => {
+    const today = new Date();
+    return new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
+  });
+  const [notes, setNotes] = useState("");
+
+  const isValid = dueDate.trim() !== "" && notes.trim() !== "";
+
+  function handleSave() {
+    if (!isValid) return;
+    onSave({
+      taskType,
+      importance,
+      dueDate,
+      notes: notes.trim(),
+    });
+  }
+
+  return createPortal(
+    <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 px-4" onClick={onClose}>
+      <div
+        className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border/50">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">Create Task</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">{companyName}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                Task Type
+              </label>
+              <select
+                value={taskType}
+                onChange={e => setTaskType(e.target.value as TaskType)}
+                className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm cursor-pointer focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
+              >
+                {(["Prospecting", "Follow-Up", "Training", "Other"] as TaskType[]).map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+                Criticality
+              </label>
+              <select
+                value={importance}
+                onChange={e => setImportance(e.target.value as Importance)}
+                className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm cursor-pointer focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
+              >
+                {(["high", "medium", "low"] as Importance[]).map(option => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+              Due Date
+            </label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={e => setDueDate(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+              Notes
+            </label>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Add context for the task..."
+              rows={5}
+              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm resize-none focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/50 bg-muted/10">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!isValid}
+            className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Create Task
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }

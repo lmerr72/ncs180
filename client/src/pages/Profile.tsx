@@ -1,15 +1,24 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { MOCK_USER } from "@/lib/mock-data";
+import { useAuth } from "@/context/AuthContext";
+import type { Timezone } from "@/types/api";
 import { Camera, Save, KeyRound, User as UserIcon, ShieldCheck, MapPin, Clock } from "lucide-react";
 
 export default function Profile() {
-  const [profile, setProfile] = useState({
-    firstName: MOCK_USER.firstName,
-    lastName: MOCK_USER.lastName,
-    title: MOCK_USER.title,
+  const { user } = useAuth();
+  const initials = user ? `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}` : "NA";
+  const [profile, setProfile] = useState<{
+    firstName: string;
+    lastName: string;
+    title: string;
+    location: string;
+    timezone: Timezone;
+  }>({
+    firstName: user?.firstName ?? "",
+    lastName: user?.lastName ?? "",
+    title: user?.title ?? "",
     location: "Denver, CO",
-    timezone: "Mountain Time (MT)",
+    timezone: (user?.timezone ?? "Mountain Time (MT)") as Timezone,
   });
 
   const [password, setPassword] = useState({
@@ -50,17 +59,17 @@ export default function Profile() {
           <div className="absolute -bottom-16 left-8 md:left-12 flex items-end gap-6">
             <div className="relative group">
               <div className="w-32 h-32 rounded-full bg-primary flex items-center justify-center text-4xl font-display font-bold text-primary-foreground border-4 border-background shadow-xl">
-                {MOCK_USER.initials}
+                {user?.initials ?? initials}
               </div>
               <button className="absolute bottom-2 right-2 w-8 h-8 bg-foreground text-background rounded-full flex items-center justify-center hover:scale-110 transition-transform shadow-md cursor-pointer border-2 border-background z-10" aria-label="Change photo">
                 <Camera className="w-4 h-4" />
               </button>
             </div>
             <div className="mb-4 text-white drop-shadow-md">
-              <h1 className="text-3xl font-display font-bold">{MOCK_USER.firstName} {MOCK_USER.lastName}</h1>
+              <h1 className="text-3xl font-display font-bold">{user?.firstName} {user?.lastName}</h1>
               <p className="text-white/80 font-medium flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4" />
-                {MOCK_USER.title}
+                {user?.title}
               </p>
             </div>
           </div>
@@ -110,7 +119,7 @@ export default function Profile() {
                 <label className="text-sm font-semibold text-foreground">Email Address</label>
                 <input 
                   type="email" 
-                  value={MOCK_USER.email || ''} 
+                  value={user?.email || ''} 
                   disabled
                   className="w-full px-4 py-3 rounded-xl border-2 border-border/50 bg-muted/50 text-muted-foreground cursor-not-allowed font-medium"
                 />
@@ -135,7 +144,7 @@ export default function Profile() {
                 </label>
                 <select
                   value={profile.timezone}
-                  onChange={e => setProfile({...profile, timezone: e.target.value})}
+                  onChange={e => setProfile({...profile, timezone: e.target.value as Timezone})}
                   className="w-full px-4 py-3 rounded-xl border-2 border-border bg-background focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-medium"
                 >
                   <option value="Mountain Time (MT)">Mountain Time (MT) — UTC−7/−6</option>

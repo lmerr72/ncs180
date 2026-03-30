@@ -2,32 +2,17 @@ import { useState, useRef, useEffect } from "react";
 import { X, ChevronRight, ChevronLeft, Wand2, Check, Building2, TrendingUp, AlertTriangle, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  MOCK_REPS, MOCK_USER, STATE_TERRITORIES, REP_KEY_TO_ID,
-  MOCK_ALL_CLIENTS, MOCK_PROSPECTS,
+STATE_TERRITORIES, REP_KEY_TO_ID,
   type ProspectStatus,
 } from "@/lib/mock-data";
 import {
-  inputCls, Field, ReviewRow, WizardOverlay,
+  inputCls, Field, ReviewRow, SeedInsightCard, type SeedResult, WizardOverlay,
 } from "@/components/AddClientWizard";
-import type { UserProfile } from "@/types/api";
+import {MOCK_CLIENTS} from '@/data/mock_clients'
+import { US_STATES } from "@/types/constants";
+import { getInitials } from "@/helpers/formatters";
+import { useClients } from "@/context/ClientsContext";
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
-const ALL_REPS: UserProfile[] = [
-  { id: MOCK_USER.id, firstName: MOCK_USER.firstName, lastName: MOCK_USER.lastName, role: MOCK_USER.role, initials: MOCK_USER.initials },
-  ...MOCK_REPS.filter(r => r.id !== MOCK_USER.id && r.id !== "u3"),
-];
-
-const US_STATES = [
-  "Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut",
-  "Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa",
-  "Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan",
-  "Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire",
-  "New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio",
-  "Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota",
-  "Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia",
-  "Wisconsin","Wyoming",
-];
 
 const STATE_ABBR: Record<string, string> = {
   Alabama:"AL",Alaska:"AK",Arizona:"AZ",Arkansas:"AR",California:"CA",Colorado:"CO",
@@ -51,18 +36,16 @@ const STATUS_STYLES: Record<ProspectStatus, { badge: string; dot: string }> = {
   "Pending":          { badge: "bg-orange-100 text-orange-700 border-orange-200", dot: "bg-orange-400" },
 };
 
-const ALL_COMPANY_NAMES = MOCK_ALL_CLIENTS.map(c => c.companyName);
-
 // ── CompanyTypeahead ─────────────────────────────────────────────────────────
 
-function CompanyTypeahead({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function CompanyTypeahead({ value, onChange, companyNames }: { value: string; onChange: (v: string) => void; companyNames: string[] }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const trimmed = value.trim().toLowerCase();
   const suggestions = trimmed.length >= 1
-    ? ALL_COMPANY_NAMES.filter(n => n.toLowerCase().includes(trimmed)).slice(0, 7)
+    ? companyNames.filter(n => n.toLowerCase().includes(trimmed)).slice(0, 7)
     : [];
-  const exactMatch = ALL_COMPANY_NAMES.find(n => n.toLowerCase() === trimmed);
+  const exactMatch = companyNames.find(n => n.toLowerCase() === trimmed);
   const hasSuggestions = suggestions.length > 0 && open && !exactMatch;
   const showNoMatch = trimmed.length >= 2 && open && suggestions.length === 0 && !exactMatch;
 
@@ -168,20 +151,20 @@ const EMPTY: FormData = {
   assignedRepId: "",
 };
 
-type Step = 1 | 2;
-
 interface Props {
   onClose: () => void;
-  onCreated: (prospect: typeof MOCK_PROSPECTS[0]) => void;
 }
 
-export function CreateProspectWizard({ onClose, onCreated }: Props) {
-  const [step, setStep] = useState<Step>(1);
+export function CreateProspectWizard({ onClose }: Props) {
+  const { addProspect, allClients, reps } = useClients();
   const [form, setForm] = useState<FormData>(EMPTY);
   const [submitted, setSubmitted] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [seedError, setSeedError] = useState<string | null>(null);
   const [seedSuccess, setSeedSuccess] = useState(false);
+  const [seedDetails, setSeedDetails] = useState<SeedResult | null>(null);
 
   function set<K extends keyof FormData>(field: K, value: FormData[K]) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -195,13 +178,14 @@ export function CreateProspectWizard({ onClose, onCreated }: Props) {
       const resp = await fetch("/api/seed-client", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyName: name }),
+        body: JSON.stringify({
+          companyName: name,
+          city: form.city.trim(),
+          state: form.state,
+        }),
       });
       if (!resp.ok) throw new Error(`Server error ${resp.status}`);
-      const data = await resp.json() as {
-        website: string | null; linkedin: string | null; dbas: string;
-        city: string | null; state: string | null; unitCount: string | null;
-      };
+      const data = await resp.json() as SeedResult;
       setForm(prev => ({
         ...prev,
         website:   data.website   ?? prev.website,
@@ -211,6 +195,7 @@ export function CreateProspectWizard({ onClose, onCreated }: Props) {
         state:     data.state     ?? prev.state,
         unitCount: data.unitCount ?? prev.unitCount,
       }));
+      setSeedDetails(data);
       setSeedSuccess(true);
       setTimeout(() => setSeedSuccess(false), 3000);
     } catch {
@@ -225,22 +210,43 @@ export function CreateProspectWizard({ onClose, onCreated }: Props) {
   const autoRepId = repKey && repKey !== "open" ? REP_KEY_TO_ID[repKey] : null;
   function handleAutoAssign() { if (autoRepId) set("assignedRepId", autoRepId); }
 
-  const selectedRep = ALL_REPS.find(r => r.id === form.assignedRepId) ?? null;
+  const companyNames = allClients.length > 0
+    ? allClients.map((client) => client.companyName)
+    : MOCK_CLIENTS.map((client) => client.companyName);
+  const repOptions = reps;
+  const selectedRep = repOptions.find(r => r.id === form.assignedRepId) ?? null;
   const step1Valid = form.companyName.trim() && form.city.trim() && form.state;
   const step2Valid = !!form.assignedRepId;
 
-  function handleSubmit() {
-    const cityStr = form.city.trim();
-    const stateAbbr = STATE_ABBR[form.state] ?? form.state;
-    const newProspect = {
-      id: `p${Date.now()}`,
-      companyName: form.companyName.trim(),
-      location: `${cityStr}, ${stateAbbr}`,
-      unitCount: parseInt(form.unitCount) || 0,
-      status: form.prospectStatus,
-    };
-    onCreated(newProspect);
-    setSubmitted(true);
+  async function handleSubmit() {
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      await addProspect({
+        companyName: form.companyName.trim(),
+        dbas: form.dbas.split(",").map((value) => value.trim()).filter(Boolean),
+        website: form.website.trim(),
+        linkedIn: form.linkedin.trim(),
+        city: form.city.trim(),
+        state: form.state,
+        unitCount: parseInt(form.unitCount) || 0,
+        prospectStatus:
+          form.prospectStatus === "Verbal"
+            ? "verbal"
+            : form.prospectStatus === "In Communication"
+              ? "in_communication"
+              : form.prospectStatus === "Awaiting Review"
+                ? "awaiting_review"
+                : "not_started",
+        assignedRepId: form.assignedRepId,
+      });
+      setSubmitted(true);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to create prospect.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   const statusStyle = STATUS_STYLES[form.prospectStatus];
@@ -272,7 +278,7 @@ export function CreateProspectWizard({ onClose, onCreated }: Props) {
   return (
     <WizardOverlay onClose={onClose} title="Create Prospect" icon={<TrendingUp className="w-4 h-4 text-primary" />}>
       {/* Step indicators */}
-      <div className="flex items-center gap-2 mb-6">
+      {/* <div className="flex items-center gap-2 mb-6">
         {([1, 2] as Step[]).map(s => (
           <div key={s} className="flex items-center gap-2">
             <div className={cn(
@@ -289,15 +295,16 @@ export function CreateProspectWizard({ onClose, onCreated }: Props) {
             {s < 2 && <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50 ml-1" />}
           </div>
         ))}
-      </div>
+      </div> */}
 
       {/* ── STEP 1 ── */}
-      {step === 1 && (
+
         <div className="space-y-4">
           <Field label="Company Name" required>
             <CompanyTypeahead
               value={form.companyName}
-              onChange={val => { set("companyName", val); setSeedError(null); setSeedSuccess(false); }}
+              onChange={val => { set("companyName", val); setSeedError(null); setSeedSuccess(false); setSeedDetails(null); }}
+              companyNames={companyNames}
             />
           </Field>
 
@@ -336,6 +343,8 @@ export function CreateProspectWizard({ onClose, onCreated }: Props) {
               <span className="text-xs text-muted-foreground">Auto-fill fields using AI</span>
             )}
           </div>
+
+          <SeedInsightCard seed={seedDetails} />
 
           {/* Prospect Status */}
           <Field label="Prospect Status" required>
@@ -397,90 +406,18 @@ export function CreateProspectWizard({ onClose, onCreated }: Props) {
             <input type="number" placeholder="e.g. 4200" value={form.unitCount}
               onChange={e => set("unitCount", e.target.value)} className={inputCls} />
           </Field>
+        
 
-          <div className="flex justify-end pt-2">
+        <div className="flex items-center justify-between pt-2">
             <button
-              disabled={!step1Valid}
-              onClick={() => setStep(2)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            >
-              Next: Assignment <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── STEP 2 ── */}
-      {step === 2 && (
-        <div className="space-y-5">
-          {/* Review card */}
-          <div className="bg-muted/30 rounded-xl border border-border p-4 space-y-2">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">Prospect Summary</p>
-            <ReviewRow label="Company" value={form.companyName} />
-            <ReviewRow label="Location" value={`${form.city}, ${STATE_ABBR[form.state] ?? form.state}`} />
-            {form.unitCount && <ReviewRow label="Units" value={parseInt(form.unitCount).toLocaleString()} />}
-            <div className="flex items-baseline gap-2 text-sm pt-1">
-              <span className="text-muted-foreground w-20 flex-shrink-0">Status</span>
-              <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border", statusStyle.badge)}>
-                <span className={cn("w-1.5 h-1.5 rounded-full", statusStyle.dot)} />
-                {form.prospectStatus}
-              </span>
-            </div>
-          </div>
-
-          {/* Territory auto-assign */}
-          {autoRepId && (
-            <div className="flex items-center gap-3 px-3.5 py-3 rounded-xl bg-primary/5 border border-primary/20">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-primary">Territory Match</p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {ALL_REPS.find(r => r.id === autoRepId)?.firstName} {ALL_REPS.find(r => r.id === autoRepId)?.lastName} covers {form.state}
-                </p>
-              </div>
-              <button onClick={handleAutoAssign}
-                className="flex-shrink-0 text-xs font-bold text-primary hover:underline">
-                Auto-assign
-              </button>
-            </div>
-          )}
-
-          <Field label="Assign Rep" required>
-            <select value={form.assignedRepId} onChange={e => set("assignedRepId", e.target.value)}
-              className={cn(inputCls, "cursor-pointer flex-1")}>
-              <option value="">— Select a rep —</option>
-              {ALL_REPS.map(r => (
-                <option key={r.id} value={r.id}>{r.firstName} {r.lastName}</option>
-              ))}
-            </select>
-          </Field>
-
-          {selectedRep && (
-            <div className="flex items-center gap-3 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200">
-              <div className="w-9 h-9 rounded-xl bg-emerald-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                {selectedRep.initials}
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">{selectedRep.firstName} {selectedRep.lastName}</p>
-                <p className="text-xs text-emerald-700 capitalize">{selectedRep.role?.replace("_", " ")}</p>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between pt-2">
-            <button onClick={() => setStep(1)}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-              <ChevronLeft className="w-3.5 h-3.5" /> Back
-            </button>
-            <button
-              disabled={!step2Valid}
+              disabled={!step2Valid || saving}
               onClick={handleSubmit}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
-              <TrendingUp className="w-3.5 h-3.5" /> Create Prospect
+              <TrendingUp className="w-3.5 h-3.5" /> {saving ? "Saving..." : "Create Prospect"}
             </button>
           </div>
-        </div>
-      )}
+          </div>
     </WizardOverlay>
   );
 }

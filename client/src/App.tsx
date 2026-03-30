@@ -2,21 +2,23 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ClientsProvider } from "@/context/ClientsContext";
+import { TasksProvider } from "@/context/TasksContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import NotFound from "@/pages/not-found";
 
 import SignIn from "@/pages/SignIn";
 
 import Dashboard from "@/pages/Dashboard";
-import MyClients from "@/pages/MyClients";
+import MyClients from "@/pages/tabs/my-clients/MyClients";
 import AllClients from "@/pages/AllClients";
 import ClientProfile from "@/pages/ClientProfile";
 import CalendarPage from "@/pages/Calendar";
 import Profile from "@/pages/Profile";
-import Pipeline from "@/pages/Pipeline";
-import Metrics from "@/pages/Metrics";
+import Pipeline from "@/pages/tabs/pipeline/Pipeline";
+import Metrics from "@/pages/tabs/metrics/Metrics";
 import Tasks from "@/pages/Tasks";
 import SalesRepProfile from "@/pages/SalesRepProfile";
+import ContactProfile from "@/pages/ContactProfile";
 
 import ClientDashboard from "@/pages/client-portal/ClientDashboard";
 import ClientReports from "@/pages/client-portal/ClientReports";
@@ -38,6 +40,7 @@ function SalesRepRouter() {
       <Route path="/metrics" element={<Metrics />} />
       <Route path="/tasks" element={<Tasks />} />
       <Route path="/rep/:id" element={<SalesRepProfile />} />
+      <Route path="/contacts/:id" element={<ContactProfile />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -79,12 +82,14 @@ function App() {
   return (
     <AuthProvider>
       <ClientsProvider>
-        <TooltipProvider>
-          <BrowserRouter>
-            <AppRouter />
-          </BrowserRouter>
-          <Toaster />
-        </TooltipProvider>
+        <TasksProvider>
+          <TooltipProvider>
+            <BrowserRouter>
+              <AppRouter />
+            </BrowserRouter>
+            <Toaster />
+          </TooltipProvider>
+        </TasksProvider>
       </ClientsProvider>
     </AuthProvider>
   );

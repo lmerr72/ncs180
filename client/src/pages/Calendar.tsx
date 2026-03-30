@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { MOCK_ALL_CLIENTS } from "@/lib/mock-data";
 import {
   ChevronLeft, ChevronRight, Plus, X, MapPin, Clock,
   Calendar as CalendarIcon, Users, Ban, Umbrella, ChevronDown,
@@ -12,6 +11,7 @@ import {
   addWeeks, subWeeks, addDays, subDays, parseISO,
 } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useClients } from "@/context/ClientsContext";
 
 /* ─── Timezone helpers ─── */
 function getTimezoneAbbr(): string {
@@ -149,6 +149,7 @@ const TODAY = new Date(2026, 2, 17); // March 17, 2026
 
 /* ═══════════════════════════════════════════════════════════ */
 export default function CalendarPage() {
+  const { allClients } = useClients();
   const [view, setView]                 = useState<"month" | "week" | "day">("month");
   const [currentDate, setCurrentDate]   = useState(TODAY);
   const [entries, setEntries]           = useState<CalendarEntry[]>(SEED);
@@ -665,7 +666,7 @@ export default function CalendarPage() {
                       onChange={e => setForm(f => ({ ...f, company: e.target.value }))}
                       className="w-full px-4 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary transition-all">
                       <option value="">Select a company…</option>
-                      {MOCK_ALL_CLIENTS.map(c => (
+                      {allClients.map(c => (
                         <option key={c.id} value={c.companyName}>{c.companyName}</option>
                       ))}
                     </select>

@@ -1,35 +1,27 @@
+import { MOCK_CLIENT_REPS } from "@/data/mock_client_reps";
+import { UserProfile } from "@/types/api";
 import { createContext, useContext, useState, ReactNode } from "react";
 
-export type UserRole = "sales_rep" | "client";
-
-export interface AuthUser {
-  id: string;
-  username: string;
-  firstName: string;
-  lastName: string;
-  role: UserRole;
-  title?: string;
-}
-
 interface AuthContextValue {
-  user: AuthUser | null;
+  user: UserProfile | null;
   login: (username: string, password: string) => boolean;
   logout: () => void;
 }
 
-const DUMMY_USERS: Array<AuthUser & { password: string }> = [
+const DUMMY_USERS: Array<UserProfile & { password: string }> = [
   {
     id: "rep-gordon-m",
-    username: "gmarshall",
+    email: "gmarshall@ncs180.com",
     password: "lindsay",
     firstName: "Gordon",
     lastName: "Marshall",
     role: "sales_rep",
     title: "Sales Representative",
+    repId: (MOCK_CLIENT_REPS.find(c => c.firstName === 'Gordon' && c.lastName === 'Marshall')).id
   },
   {
     id: "client-kathy-m",
-    username: "kmcgee",
+    email: "kmcgee@property.com",
     password: "client",
     firstName: "Kathy",
     lastName: "McGee",
@@ -41,15 +33,14 @@ const DUMMY_USERS: Array<AuthUser & { password: string }> = [
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
 
   function login(username: string, password: string): boolean {
     const match = DUMMY_USERS.find(
-      u => u.username === username.trim() && u.password === password
+      u => u.email === username.trim() && u.password === password
     );
     if (!match) return false;
-    const { password: _pw, ...authUser } = match;
-    setUser(authUser);
+    setUser(match);
     return true;
   }
 

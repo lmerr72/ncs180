@@ -3,28 +3,39 @@ import { createPortal } from "react-dom";
 import { X, ChevronRight, ChevronLeft, Wand2, Check, Building2, User, AlertTriangle, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
-  MOCK_REPS, MOCK_USER, STATE_TERRITORIES, REP_KEY_TO_ID, REP_DETAILS,
-  MOCK_ALL_CLIENTS,
+ MOCK_USER, STATE_TERRITORIES, REP_KEY_TO_ID, REP_DETAILS,
 } from "@/lib/mock-data";
-import { useClients, type NewClientData } from "@/context/ClientsContext";
-import type { UserProfile } from "@/types/api";
+import { useClients } from "@/context/ClientsContext";
+import { US_STATES } from "@/types/constants";
+import {MOCK_CLIENTS} from '@/data/mock_clients'
+import { getInitials } from "@/helpers/formatters";
 
-const US_STATES = [
-  "Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut",
-  "Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa",
-  "Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan",
-  "Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire",
-  "New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio",
-  "Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota",
-  "Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia",
-  "Wisconsin","Wyoming",
-];
-
-// All reps including Gordon Marshall (MOCK_USER)
-const ALL_REPS: UserProfile[] = [
-  { id: MOCK_USER.id, firstName: MOCK_USER.firstName, lastName: MOCK_USER.lastName, role: MOCK_USER.role, initials: MOCK_USER.initials },
-  ...MOCK_REPS.filter(r => r.id !== MOCK_USER.id && r.id !== "u3"), // u3 is the duplicate Gordon
-];
+export interface SeedResult {
+  website: string | null;
+  linkedIn?: string | null;
+  linkedin?: string | null;
+  dbas: string;
+  city: string | null;
+  state: string | null;
+  unitCount: string | null;
+  confidence?: {
+    label: "high" | "medium" | "low";
+    score: number;
+  };
+  filledFields?: string[];
+  searchHits?: Array<{
+    title: string;
+    url: string;
+    domain?: string;
+  }>;
+  usedQueries?: string[];
+  usedLocationHints?: {
+    city: string | null;
+    state: string | null;
+  };
+  warnings?: string[];
+  error?: string;
+}
 
 interface Props { onClose: () => void }
 
@@ -34,7 +45,7 @@ interface FormData {
   companyName: string;
   dbas: string;
   website: string;
-  linkedin: string;
+  linkedIn: string;
   city: string;
   state: string;
   unitCount: string;
@@ -42,28 +53,27 @@ interface FormData {
 }
 
 const EMPTY: FormData = {
-  companyName: "", dbas: "", website: "", linkedin: "",
+  companyName: "", dbas: "", website: "", linkedIn: "",
   city: "", state: "", unitCount: "", assignedRepId: "",
 };
-
-const ALL_COMPANY_NAMES = MOCK_ALL_CLIENTS.map(c => c.companyName);
 
 interface CompanyTypeaheadProps {
   value: string;
   onChange: (val: string) => void;
+  companyNames: string[];
 }
 
-function CompanyTypeahead({ value, onChange }: CompanyTypeaheadProps) {
+function CompanyTypeahead({ value, onChange, companyNames }: CompanyTypeaheadProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const trimmed = value.trim().toLowerCase();
 
   const suggestions = trimmed.length >= 1
-    ? ALL_COMPANY_NAMES.filter(n => n.toLowerCase().includes(trimmed)).slice(0, 7)
+    ? companyNames.filter(n => n.toLowerCase().includes(trimmed)).slice(0, 7)
     : [];
 
-  const exactMatch = ALL_COMPANY_NAMES.find(
+  const exactMatch = companyNames.find(
     n => n.toLowerCase() === trimmed
   );
 
@@ -170,14 +180,88 @@ function CompanyTypeahead({ value, onChange }: CompanyTypeaheadProps) {
   );
 }
 
+export function SeedInsightCard({ seed }: { seed: SeedResult | null }) {
+  if (!seed || (!seed.searchHits?.length && !seed.filledFields?.length && !seed.confidence)) {
+    return null;
+  }
+
+  const confidenceTone = seed.confidence?.label === "high"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    : seed.confidence?.label === "medium"
+      ? "bg-amber-50 text-amber-700 border-amber-200"
+      : "bg-slate-50 text-slate-700 border-slate-200";
+
+  return (
+    <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Seed Insights</p>
+          <p className="text-sm text-foreground">Review what the agent found before saving.</p>
+        </div>
+        {seed.confidence && (
+          <span className={cn("inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold capitalize", confidenceTone)}>
+            {seed.confidence.label} confidence
+          </span>
+        )}
+      </div>
+
+      {!!seed.filledFields?.length && (
+        <div className="flex flex-wrap gap-2">
+          {seed.filledFields.map((field) => (
+            <span key={field} className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+              {field}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {!!seed.searchHits?.length && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Sources</p>
+          <div className="space-y-2">
+            {seed.searchHits.slice(0, 3).map((hit) => (
+              <a
+                key={hit.url}
+                href={hit.url}
+                target="_blank"
+                rel="noreferrer"
+                className="block rounded-xl border border-border bg-background px-3 py-2 hover:border-primary/40 hover:bg-primary/5 transition-colors"
+              >
+                <p className="text-sm font-medium text-foreground line-clamp-1">{hit.title}</p>
+                <p className="text-xs text-muted-foreground line-clamp-1">{hit.domain || hit.url}</p>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!!seed.usedQueries?.length && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Search Terms Used</p>
+          <div className="flex flex-wrap gap-2">
+            {seed.usedQueries.slice(0, 4).map((query) => (
+              <span key={query} className="rounded-full border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground">
+                {query}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AddClientWizard({ onClose }: Props) {
-  const { addClient } = useClients();
+  const { addClient, allClients, reps, currentUser } = useClients();
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState<FormData>(EMPTY);
   const [submitted, setSubmitted] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [seedError, setSeedError] = useState<string | null>(null);
   const [seedSuccess, setSeedSuccess] = useState(false);
+  const [seedDetails, setSeedDetails] = useState<SeedResult | null>(null);
 
   function set(field: keyof FormData, value: string) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -190,33 +274,30 @@ export function AddClientWizard({ onClose }: Props) {
     setSeedError(null);
     setSeedSuccess(false);
     try {
-      const resp = await fetch("/api/seed-client", {
+      const resp = await fetch("/api/apollo/seed-client", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyName: name }),
+        body: JSON.stringify({
+          companyName: name,
+          website: form.website.trim(),
+        }),
       });
-      if (!resp.ok) throw new Error(`Server error ${resp.status}`);
-      const data = await resp.json() as {
-        website: string | null;
-        linkedin: string | null;
-        dbas: string;
-        city: string | null;
-        state: string | null;
-        unitCount: string | null;
-      };
+      const data = await resp.json() as SeedResult;
+      if (!resp.ok) throw new Error(data.error ?? `Server error ${resp.status}`);
       setForm(prev => ({
         ...prev,
         website:   data.website   ?? prev.website,
-        linkedin:  data.linkedin  ?? prev.linkedin,
+        linkedIn:  data.linkedIn  ?? prev.linkedIn,
         dbas:      data.dbas      || prev.dbas,
         city:      data.city      ?? prev.city,
         state:     data.state     ?? prev.state,
         unitCount: data.unitCount ?? prev.unitCount,
       }));
+      setSeedDetails(data);
       setSeedSuccess(true);
       setTimeout(() => setSeedSuccess(false), 3000);
     } catch (err) {
-      setSeedError("Couldn't fetch company data. Try again.");
+      setSeedError(err instanceof Error ? err.message : "Couldn't fetch company data. Try again.");
     } finally {
       setSeeding(false);
     }
@@ -231,25 +312,38 @@ export function AddClientWizard({ onClose }: Props) {
     if (autoRepId) set("assignedRepId", autoRepId);
   }
 
-  const selectedRep = ALL_REPS.find(r => r.id === form.assignedRepId) ?? null;
+  const companyNames = allClients.length > 0
+    ? allClients.map((client) => client.companyName)
+    : MOCK_CLIENTS.map((client) => client.companyName);
+  const repOptions = reps;
+  const selectedRep = repOptions.find(r => r.id === form.assignedRepId) ?? null;
 
   const step1Valid = form.companyName.trim() && form.city.trim() && form.state;
   const step2Valid = !!form.assignedRepId;
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!selectedRep) return;
-    const data: NewClientData = {
-      companyName: form.companyName.trim(),
-      dbas: form.dbas.trim(),
-      website: form.website.trim(),
-      linkedin: form.linkedin.trim(),
-      city: form.city.trim(),
-      state: form.state,
-      unitCount: parseInt(form.unitCount) || 0,
-      assignedRep: selectedRep,
-    };
-    addClient(data);
-    setSubmitted(true);
+
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      await addClient({
+        companyName: form.companyName.trim(),
+        dbas: form.dbas.split(",").map((value) => value.trim()).filter(Boolean),
+        website: form.website.trim(),
+        linkedIn: form.linkedIn.trim(),
+        city: form.city.trim(),
+        state: form.state,
+        unitCount: parseInt(form.unitCount) || 0,
+        assignedRepId: selectedRep.id,
+      });
+      setSubmitted(true);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to save client.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   // Success screen
@@ -264,10 +358,10 @@ export function AddClientWizard({ onClose }: Props) {
           <p className="text-muted-foreground text-sm mb-1">
             <span className="font-semibold text-foreground">{form.companyName}</span> has been added to All Clients.
           </p>
-          {selectedRep?.id === MOCK_USER.id && (
+          {selectedRep?.id === (currentUser?.id ?? MOCK_USER.id) && (
             <p className="text-xs text-emerald-600 font-medium mb-6">Also visible in your My Clients page.</p>
           )}
-          {selectedRep?.id !== MOCK_USER.id && <div className="mb-6" />}
+          {selectedRep?.id !== (currentUser?.id ?? MOCK_USER.id) && <div className="mb-6" />}
           <button
             onClick={onClose}
             className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
@@ -309,11 +403,12 @@ export function AddClientWizard({ onClose }: Props) {
           <Field label="Company Name" required>
             <CompanyTypeahead
               value={form.companyName}
-              onChange={val => { set("companyName", val); setSeedError(null); setSeedSuccess(false); }}
+              onChange={val => { set("companyName", val); setSeedError(null); setSeedSuccess(false); setSeedDetails(null); }}
+              companyNames={companyNames}
             />
           </Field>
 
-          {/* Seed with Agent */}
+          {/* Apollo enrichment */}
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -344,7 +439,7 @@ export function AddClientWizard({ onClose }: Props) {
               ) : (
                 <>
                   <Wand2 className="w-3.5 h-3.5" />
-                  <span>Seed with Agent</span>
+                  <span>Enrich with Apollo</span>
                 </>
               )}
             </button>
@@ -355,9 +450,11 @@ export function AddClientWizard({ onClose }: Props) {
               </span>
             )}
             {!seedError && !seeding && !seedSuccess && form.companyName.trim().length >= 2 && (
-              <span className="text-xs text-muted-foreground">Auto-fill fields using AI</span>
+              <span className="text-xs text-muted-foreground">Auto-fill fields using Apollo account data</span>
             )}
           </div>
+
+          <SeedInsightCard seed={seedDetails} />
 
           <Field label="DBAs" hint="Also known as — separate multiple with commas">
             <input
@@ -383,8 +480,8 @@ export function AddClientWizard({ onClose }: Props) {
               <input
                 type="text"
                 placeholder="https://linkedin.com/company/..."
-                value={form.linkedin}
-                onChange={e => set("linkedin", e.target.value)}
+                value={form.linkedIn}
+                onChange={e => set("linkedIn", e.target.value)}
                 className={inputCls}
               />
             </Field>
@@ -455,7 +552,7 @@ export function AddClientWizard({ onClose }: Props) {
                 className={cn(inputCls, "cursor-pointer flex-1")}
               >
                 <option value="">Select a rep...</option>
-                {ALL_REPS.map(rep => (
+                {repOptions.map(rep => (
                   <option key={rep.id} value={rep.id}>
                     {rep.firstName} {rep.lastName}
                   </option>
@@ -483,7 +580,7 @@ export function AddClientWizard({ onClose }: Props) {
           {selectedRep && (
             <div className="rounded-xl border border-border bg-muted/20 p-4 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
-                {selectedRep.initials}
+                {getInitials(selectedRep.firstName,selectedRep.lastName)}
               </div>
               <div>
                 <p className="font-semibold text-foreground text-sm">{selectedRep.firstName} {selectedRep.lastName}</p>
@@ -491,7 +588,7 @@ export function AddClientWizard({ onClose }: Props) {
                   {REP_DETAILS[selectedRep.id]?.title ?? "Sales Representative"}
                   {REP_DETAILS[selectedRep.id]?.location ? ` · ${REP_DETAILS[selectedRep.id].location}` : ""}
                 </p>
-                {selectedRep.id === MOCK_USER.id && (
+                {selectedRep.id === (currentUser?.id ?? MOCK_USER.id) && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold border border-primary/20 mt-0.5 inline-block">You</span>
                 )}
               </div>
@@ -512,13 +609,18 @@ export function AddClientWizard({ onClose }: Props) {
 
       {/* Footer buttons */}
       <div className="flex items-center justify-between mt-8 pt-4 border-t border-border/50">
-        {step === 1 ? (
-          <button onClick={onClose} className="text-sm text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
-        ) : (
-          <button onClick={() => setStep(1)} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <ChevronLeft className="w-4 h-4" /> Back
-          </button>
-        )}
+        <div>
+          {step === 1 ? (
+            <button onClick={onClose} className="text-sm text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
+          ) : (
+            <button onClick={() => setStep(1)} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <ChevronLeft className="w-4 h-4" /> Back
+            </button>
+          )}
+          {step === 2 && saveError && (
+            <p className="mt-2 text-xs text-destructive">{saveError}</p>
+          )}
+        </div>
         {step === 1 ? (
           <button
             onClick={() => setStep(2)}
@@ -530,10 +632,10 @@ export function AddClientWizard({ onClose }: Props) {
         ) : (
           <button
             onClick={handleSubmit}
-            disabled={!step2Valid}
+            disabled={!step2Valid || saving}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
-            <Check className="w-4 h-4" /> Add Client
+            <Check className="w-4 h-4" /> {saving ? "Saving..." : "Add Client"}
           </button>
         )}
       </div>
@@ -543,7 +645,7 @@ export function AddClientWizard({ onClose }: Props) {
 
 // ── Helpers (exported for reuse in other wizards) ────────────────────────────
 
-export const inputCls = "w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all";
+export const inputCls = "w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background placeholder-gray-300 text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all";
 
 export function Field({ label, hint, required, children }: {
   label: string; hint?: string; required?: boolean; children: React.ReactNode;
