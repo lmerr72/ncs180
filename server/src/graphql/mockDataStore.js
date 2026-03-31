@@ -78,7 +78,7 @@ function createMockDataStore() {
 
     async createContact(clientId, input) {
       const record = {
-        // id: `contact-${Date.now()}`,
+        id: `contact-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         firstName: input.firstName.trim(),
         lastName: input.lastName.trim(),
         title: input.title?.trim() || null,
@@ -96,6 +96,48 @@ function createMockDataStore() {
       }
 
       return mapContact(record);
+    },
+
+    async bulkCreateContacts(clientId, inputs) {
+      const createdContacts = [];
+
+      for (const input of inputs) {
+        createdContacts.push(await this.createContact(clientId, input));
+      }
+
+      return createdContacts;
+    },
+
+    async updateContact(id, input) {
+      const contact = contacts.find((entry) => entry.id === id);
+      if (!contact) {
+        throw new Error(`Contact ${id} was not found.`);
+      }
+
+      contact.firstName = input.firstName.trim();
+      contact.lastName = input.lastName.trim();
+      contact.title = input.title?.trim() || null;
+      contact.email = input.email?.trim() || null;
+      contact.phone = input.phone?.trim() || null;
+      contact.linkedIn = input.linkedIn?.trim() || null;
+      contact.isPrimary = input.isPrimary ?? false;
+
+      return mapContact(contact);
+    },
+
+    async deleteContact(id) {
+      const index = contacts.findIndex((entry) => entry.id === id);
+      if (index === -1) {
+        throw new Error(`Contact ${id} was not found.`);
+      }
+
+      const [deleted] = contacts.splice(index, 1);
+
+      clients.forEach((client) => {
+        client.contactIds = (client.contactIds ?? []).filter((contactId) => contactId !== id);
+      });
+
+      return mapContact(deleted);
     },
 
     async disconnect() {}

@@ -62,7 +62,15 @@ function ClientRouter() {
 }
 
 function AppRouter() {
-  const { user } = useAuth();
+  const { user, isReady } = useAuth();
+
+  if (!isReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
+        Loading...
+      </div>
+    );
+  }
 
   if (!user) {
     return (

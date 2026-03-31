@@ -256,6 +256,195 @@ function createApolloService({
     ];
   }
 
+  async function findPeople({ companyName, domain, organizationId }) {
+    const candidates = [];
+
+    if (organizationId) {
+      candidates.push({
+        path: '/api/v1/mixed_people/search',
+        options: {
+          method: 'POST',
+          body: {
+            organization_ids: [organizationId],
+            page: 1,
+            per_page: 10
+          }
+        }
+      });
+      candidates.push({
+        path: '/api/v1/mixed_people/search',
+        options: {
+          method: 'POST',
+          body: {
+            q_organization_ids: [organizationId],
+            page: 1,
+            per_page: 10
+          }
+        }
+      });
+      candidates.push({
+        path: '/api/v1/mixed_people/api_search',
+        options: {
+          method: 'POST',
+          body: {
+            organization_ids: [organizationId],
+            page: 1,
+            per_page: 10
+          }
+        }
+      });
+    }
+
+    if (domain) {
+      candidates.push({
+        path: '/api/v1/mixed_people/search',
+        options: {
+          method: 'POST',
+          body: {
+            q_organization_domains: [domain],
+            page: 1,
+            per_page: 10
+          }
+        }
+      });
+      candidates.push({
+        path: '/api/v1/mixed_people/api_search',
+        options: {
+          method: 'POST',
+          body: {
+            q_organization_domains: [domain],
+            page: 1,
+            per_page: 10
+          }
+        }
+      });
+    }
+
+    if (companyName) {
+      candidates.push({
+        path: '/api/v1/mixed_people/search',
+        options: {
+          method: 'POST',
+          body: {
+            q_organization_name: companyName,
+            page: 1,
+            per_page: 10
+          }
+        }
+      });
+      candidates.push({
+        path: '/api/v1/mixed_people/api_search',
+        options: {
+          method: 'POST',
+          body: {
+            q_organization_name: companyName,
+            page: 1,
+            per_page: 10
+          }
+        }
+      });
+    }
+
+    const response = await firstSuccessfulRequest(candidates);
+    return pickRecordList(response, ['people', 'contacts', 'results']);
+  }
+
+  async function enrichPeople(people, domain) {
+    if (!Array.isArray(people) || people.length === 0) {
+      return [];
+    }
+
+    const details = people
+      .slice(0, 10)
+      .map((person) => ({
+        id: person.id || person.person_id || undefined,
+        first_name: person.first_name || person.firstName || undefined,
+        last_name: person.last_name || person.lastName || undefined,
+        name: compactJoin([
+          person.first_name || person.firstName,
+          person.last_name || person.lastName
+        ], ' ') || undefined,
+        organization_name: person.organization_name || person.company || undefined,
+        domain: domain || undefined,
+        linkedin_url: person.linkedin_url || person.linkedin_profile_url || person.linkedin || undefined,
+        reveal_personal_emails: false
+      }))
+      .filter((detail) => detail.id || detail.linkedin_url || (detail.first_name && (detail.last_name || detail.name)));
+
+    if (details.length === 0) {
+      return [];
+    }
+
+    const response = await firstSuccessfulRequest([
+      {
+        path: '/api/v1/people/bulk_match',
+        options: {
+          method: 'POST',
+          body: { details }
+        }
+      },
+      {
+        path: '/api/v1/people/bulk_match',
+        options: {
+          method: 'POST',
+          body: { people: details }
+        }
+      }
+    ]);
+
+    return pickRecordList(response, ['matches', 'people', 'results']);
+  }
+
+  async function searchOrganizationsByTerritory({ territoryStates = [], limit = 6 }) {
+    const opportunities = [];
+
+    for (const state of territoryStates) {
+      if (opportunities.length >= limit) {
+        break;
+      }
+
+      const response = await firstSuccessfulRequest([
+        {
+          path: '/api/v1/mixed_companies/search',
+          options: {
+            method: 'POST',
+            body: {
+              q_organization_locations: [state],
+              page: 1,
+              per_page: Math.max(limit * 2, 10)
+            }
+          }
+        },
+        {
+          path: '/api/v1/mixed_companies/search',
+          options: {
+            method: 'POST',
+            body: {
+              organization_locations: [state],
+              page: 1,
+              per_page: Math.max(limit * 2, 10)
+            }
+          }
+        },
+        {
+          path: '/api/v1/mixed_companies/search',
+          options: {
+            method: 'POST',
+            body: {
+              q_state: state,
+              page: 1,
+              per_page: Math.max(limit * 2, 10)
+            }
+          }
+        }
+      ]);
+
+      opportunities.push(...pickRecordList(response, ['organizations', 'accounts', 'companies', 'results']));
+    }
+
+    return opportunities;
+  }
+
   return {
     isConfigured() {
       return Boolean(apiKey);
@@ -317,6 +506,172 @@ function createApolloService({
         openDeals: resolvedDeals,
         recentActivity: resolvedActivity,
         warnings
+      };
+    },
+
+    async getCompanyPeople({ companyName, website }) {
+      if (!apiKey) {
+        return {
+          configured: false,
+          contacts: [],
+          warnings: ['Apollo integration is not configured on the server.']
+        };
+      }
+
+      const domain = extractDomain(website);
+      const organization = await findOrganization({ companyName, domain });
+      const accountSummary = await findAccount({ companyName, domain });
+      const organizationId = organization?.id || accountSummary?.organization_id || accountSummary?.id || null;
+      const people = await findPeople({
+        companyName,
+        domain,
+        organizationId
+      });
+      const enrichedPeople = await enrichPeople(people, domain);
+
+      return {
+        configured: true,
+        contacts: normalizePeople(people, enrichedPeople),
+        warnings: people.length === 0
+          ? ['Apollo did not return people for this company. People API Search may require a master API key.']
+          : enrichedPeople.length === 0
+            ? ['Apollo returned people, but enrichment did not expose additional email details for these matches.']
+          : []
+      };
+    },
+
+    async getContactHealth({ companyName, website, contacts = [] }) {
+      if (!apiKey) {
+        return {
+          configured: false,
+          contacts: [],
+          warnings: ['Apollo integration is not configured on the server.']
+        };
+      }
+
+      const domain = extractDomain(website);
+      const preparedContacts = contacts
+        .filter(Boolean)
+        .map((contact) => ({
+          first_name: contact.firstName || contact.first_name || '',
+          last_name: contact.lastName || contact.last_name || '',
+          firstName: contact.firstName || contact.first_name || '',
+          lastName: contact.lastName || contact.last_name || '',
+          title: contact.title || '',
+          email: contact.email || '',
+          phone: contact.phone || '',
+          linkedIn: contact.linkedIn || contact.linkedin || '',
+          linkedin: contact.linkedIn || contact.linkedin || '',
+          linkedin_url: contact.linkedIn || contact.linkedin || '',
+          organization_name: companyName || '',
+          company: companyName || ''
+        }))
+        .filter((contact) => contact.firstName || contact.lastName || contact.email || contact.linkedIn);
+
+      const enrichedPeople = await enrichPeople(preparedContacts, domain);
+      const contactsWithHealth = preparedContacts.map((contact) => {
+        const matchKey = buildContactHealthKey(contact, companyName);
+        const enriched = enrichedPeople.find((person) => buildContactHealthKey(person, companyName) === matchKey) || null;
+        const apolloEmail = enriched?.email || enriched?.email_address || '';
+        const apolloPhone = enriched?.phone || enriched?.mobile_phone || enriched?.phone_number || '';
+        const apolloLinkedIn =
+          enriched?.linkedin_url ||
+          enriched?.linkedin ||
+          enriched?.linkedin_profile_url ||
+          '';
+
+        return {
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          title: contact.title || '',
+          currentEmail: contact.email || '',
+          currentPhone: contact.phone || '',
+          currentLinkedIn: contact.linkedIn || '',
+          apolloEmail,
+          apolloPhone,
+          apolloLinkedIn,
+          canImproveEmail: !contact.email && Boolean(apolloEmail),
+          canImprovePhone: !contact.phone && Boolean(apolloPhone),
+          canImproveLinkedIn: !contact.linkedIn && Boolean(apolloLinkedIn)
+        };
+      });
+
+      return {
+        configured: true,
+        contacts: contactsWithHealth,
+        warnings: contactsWithHealth.length === 0
+          ? ['No existing contacts were available to score for contact health.']
+          : enrichedPeople.length === 0
+            ? ['Apollo did not expose additional enrichment details for these contacts.']
+            : []
+      };
+    },
+
+    async getTerritoryOpportunities({ territoryStates = [], excludedCompanyNames = [], excludedDomains = [], limit = 6 }) {
+      if (!apiKey) {
+        return {
+          configured: false,
+          territoryStates,
+          opportunities: [],
+          warnings: ['Apollo integration is not configured on the server.']
+        };
+      }
+
+      const normalizedStates = territoryStates
+        .filter((state) => typeof state === 'string')
+        .map((state) => state.trim())
+        .filter(Boolean);
+
+      if (normalizedStates.length === 0) {
+        return {
+          configured: true,
+          territoryStates: [],
+          opportunities: [],
+          warnings: ['No territory states were provided for Apollo opportunity search.']
+        };
+      }
+
+      const excludedNameSet = new Set(
+        excludedCompanyNames
+          .filter((name) => typeof name === 'string')
+          .map((name) => name.trim().toLowerCase())
+          .filter(Boolean)
+      );
+      const excludedDomainSet = new Set(
+        excludedDomains
+          .filter((domain) => typeof domain === 'string')
+          .map((domain) => extractDomain(domain))
+          .filter(Boolean)
+      );
+
+      const records = await searchOrganizationsByTerritory({
+        territoryStates: normalizedStates,
+        limit
+      });
+
+      const opportunities = dedupeOrganizations(records)
+        .map((record) => normalizeOpportunity(record))
+        .filter((opportunity) => {
+          const nameKey = opportunity.name.trim().toLowerCase();
+          const domainKey = extractDomain(opportunity.website || opportunity.domain || '');
+          return !excludedNameSet.has(nameKey) && !excludedDomainSet.has(domainKey);
+        })
+        .filter((opportunity) => {
+          if (!opportunity.state) {
+            return true;
+          }
+
+          return normalizedStates.some((state) => state.toLowerCase() === opportunity.state.toLowerCase());
+        })
+        .slice(0, limit);
+
+      return {
+        configured: true,
+        territoryStates: normalizedStates,
+        opportunities,
+        warnings: opportunities.length === 0
+          ? ['Apollo did not return new organizations for the selected territory states. Organization search filters can vary by Apollo plan.']
+          : []
       };
     }
   };
@@ -471,6 +826,106 @@ function normalizeActivity(account, fetchedActivity) {
     .slice(0, 6);
 }
 
+function normalizePeople(people, enrichedPeople = []) {
+  const enrichedByKey = new Map(
+    enrichedPeople
+      .filter(Boolean)
+      .map((person) => [buildPersonMatchKey(person), person])
+      .filter(([key]) => key)
+  );
+
+  return dedupeById(
+    people
+      .filter(Boolean)
+      .map((person) => {
+        const enriched = enrichedByKey.get(buildPersonMatchKey(person)) || null;
+        const email = enriched?.email || enriched?.email_address || person.email || person.email_address || '';
+        const phone = enriched?.phone || enriched?.mobile_phone || enriched?.phone_number || person.phone || person.mobile_phone || person.phone_number || '';
+
+        return {
+          id: person.id || person.person_id || person.contact_id || null,
+          firstName: person.first_name || person.firstName || enriched?.first_name || enriched?.firstName || '',
+          lastName: person.last_name || person.lastName || enriched?.last_name || enriched?.lastName || '',
+          title: person.title || person.job_title || enriched?.title || enriched?.job_title || '',
+          email,
+          phone,
+          linkedIn:
+            person.linkedin_url ||
+            person.linkedin ||
+            person.linkedin_profile_url ||
+            enriched?.linkedin_url ||
+            enriched?.linkedin ||
+            enriched?.linkedin_profile_url ||
+            '',
+          city: person.city || enriched?.city || '',
+          state: person.state || enriched?.state || '',
+          seniority: person.seniority || enriched?.seniority || '',
+          emailStatus: email ? (enriched ? 'enriched' : 'available') : 'missing'
+        };
+      })
+      .filter((person) => person.firstName || person.lastName)
+  ).slice(0, 10);
+}
+
+function normalizeOpportunity(organization) {
+  const location = compactJoin([
+    organization.city,
+    organization.state,
+    organization.country
+  ], ', ');
+
+  return {
+    id: organization.id || organization.account_id || organization.organization_id || organization.primary_domain || organization.name || '',
+    name: organization.name || organization.organization_name || 'Unknown company',
+    website: organization.website_url || organization.website || '',
+    linkedIn: organization.linkedin_url || organization.linkedin || organization.linkedin_url_cleaned || '',
+    domain: organization.primary_domain || organization.domain || '',
+    state: organization.state || '',
+    city: organization.city || '',
+    location,
+    industry: organization.industry || organization.industry_tag || organization.sector || '',
+    employeeCount: toNumber(organization.estimated_num_employees || organization.employee_count || organization.number_of_employees)
+  };
+}
+
+function buildPersonMatchKey(person) {
+  if (!person) {
+    return '';
+  }
+
+  return (
+    person.id ||
+    person.person_id ||
+    person.contact_id ||
+    person.linkedin_url ||
+    person.linkedin_profile_url ||
+    compactJoin([
+      person.first_name || person.firstName,
+      person.last_name || person.lastName,
+      person.organization_name || person.company
+    ], '|')
+  );
+}
+
+function buildContactHealthKey(person, companyName = '') {
+  if (!person) {
+    return '';
+  }
+
+  return (
+    person.email ||
+    person.email_address ||
+    person.linkedin_url ||
+    person.linkedin_profile_url ||
+    person.linkedin ||
+    compactJoin([
+      person.first_name || person.firstName,
+      person.last_name || person.lastName,
+      person.organization_name || person.company || companyName
+    ], '|').toLowerCase()
+  );
+}
+
 function inferActivityType(item) {
   const rawType = `${item.type || item.activity_type || ''}`.toLowerCase();
   if (rawType.includes('call')) return 'Call';
@@ -492,6 +947,32 @@ function dedupeById(items) {
     }
 
     seen.add(id);
+    return true;
+  });
+}
+
+function dedupeOrganizations(items) {
+  const seen = new Set();
+
+  return items.filter((item) => {
+    const key = [
+      item?.id || item?.account_id || item?.organization_id || '',
+      item?.primary_domain || item?.domain || '',
+      item?.name || item?.organization_name || ''
+    ]
+      .filter(Boolean)
+      .join('|')
+      .toLowerCase();
+
+    if (!key) {
+      return true;
+    }
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
     return true;
   });
 }

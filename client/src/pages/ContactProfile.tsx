@@ -2,7 +2,7 @@ import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Building2, Mail, Phone, UserRound } from "lucide-react";
+import { ArrowLeft, Building2, Mail, Phone, UserRound, StickyNote, ClipboardList, Clock, CalendarDays, PhoneCall } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { LinkedInIcon, LinkedInUpdatesCard, type LinkedInPostItem } from "@/components/shared/LinkedInUpdatesCard";
 import { useClients } from "@/context/ClientsContext";
@@ -43,6 +43,96 @@ type LinkedInCompanyPostsResponse = {
   posts: LinkedInPostItem[];
   error?: string;
 };
+
+type ContactNote = {
+  id: string;
+  text: string;
+  author: string;
+  timestamp: string;
+};
+
+type ContactHistoryEntryType = "meeting" | "email" | "call";
+type ContactHistoryEntry = {
+  id: string;
+  type: ContactHistoryEntryType;
+  subject: string;
+  summary: string;
+  actor: string;
+  timestamp: string;
+};
+
+const MOCK_CONTACT_NOTES: ContactNote[] = [
+  {
+    id: "note-1",
+    text: "Prefers email recaps after meetings and usually replies later in the afternoon.",
+    author: "Gordon Marshall",
+    timestamp: "2026-03-18T15:10:00Z"
+  },
+  {
+    id: "note-2",
+    text: "Interested in performance updates tied to occupancy and renewal cycles across the Denver portfolio.",
+    author: "Gordon Marshall",
+    timestamp: "2026-03-05T17:25:00Z"
+  }
+];
+
+const MOCK_CONTACT_HISTORY: ContactHistoryEntry[] = [
+  {
+    id: "history-1",
+    type: "meeting",
+    subject: "Quarterly planning call",
+    summary: "Reviewed staffing goals for the next leasing cycle and aligned on follow-up metrics.",
+    actor: "Gordon Marshall",
+    timestamp: "2026-03-21T16:00:00Z"
+  },
+  {
+    id: "history-2",
+    type: "email",
+    subject: "Sent recap and action items",
+    summary: "Shared the proposed rollout timeline, account recap, and next check-in date.",
+    actor: "Gordon Marshall",
+    timestamp: "2026-03-21T18:10:00Z"
+  },
+  {
+    id: "history-3",
+    type: "call",
+    subject: "Inbound follow-up",
+    summary: "Confirmed the team received the pricing deck and answered onboarding questions.",
+    actor: "Jennifer Walsh",
+    timestamp: "2026-03-14T19:30:00Z"
+  }
+];
+
+const CONTACT_HISTORY_STYLES: Record<ContactHistoryEntryType, { icon: React.ElementType; badge: string; chip: string; label: string }> = {
+  meeting: {
+    icon: CalendarDays,
+    badge: "bg-blue-100 border-blue-300 text-blue-600",
+    chip: "bg-blue-50 text-blue-700 border-blue-200",
+    label: "Meeting",
+  },
+  email: {
+    icon: Mail,
+    badge: "bg-violet-100 border-violet-300 text-violet-600",
+    chip: "bg-violet-50 text-violet-700 border-violet-200",
+    label: "Email",
+  },
+  call: {
+    icon: PhoneCall,
+    badge: "bg-emerald-100 border-emerald-300 text-emerald-600",
+    chip: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    label: "Call",
+  },
+};
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  const hrs = Math.floor(mins / 60);
+  const days = Math.floor(hrs / 24);
+  if (days > 0) return `${days}d ago`;
+  if (hrs > 0) return `${hrs}h ago`;
+  return `${mins}m ago`;
+}
 
 export default function ContactProfile() {
   const { id } = useParams();
@@ -150,7 +240,7 @@ export default function ContactProfile() {
   }, [linkedInCallbackError]);
 
   useEffect(() => {
-    if (!contact || !companyLinkedInUrl) {
+    if (!contact?.id || !companyLinkedInUrl) {
       setLinkedInPosts([]);
       setLinkedInError(null);
       setLoadingLinkedIn(false);
@@ -196,7 +286,7 @@ export default function ContactProfile() {
     return () => {
       controller.abort();
     };
-  }, [companyLinkedInUrl, contact, linkedInStatus]);
+  }, [companyLinkedInUrl, contact?.id, linkedInStatus?.configured, linkedInStatus?.connected]);
 
   const linkedInStatusMessage = (() => {
     if (linkedInCallbackError) {
@@ -382,6 +472,67 @@ export default function ContactProfile() {
                 </span>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-primary" />
+              <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">History</h2>
+              <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">{MOCK_CONTACT_HISTORY.length}</span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto max-h-96">
+              <div className="relative">
+                <div className="absolute left-[2.35rem] top-0 bottom-0 w-px bg-border/60" />
+                {MOCK_CONTACT_HISTORY.map((entry) => {
+                  const config = CONTACT_HISTORY_STYLES[entry.type];
+                  const Icon = config.icon;
+
+                  return (
+                    <div key={entry.id} className="flex items-start gap-4 px-5 py-4 relative hover:bg-muted/20 transition-colors">
+                      <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 z-10 border-2", config.badge)}>
+                        <Icon className="w-2.5 h-2.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                          <p className="text-sm text-foreground font-medium leading-snug">{entry.subject}</p>
+                          <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide", config.chip)}>
+                            {config.label}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{entry.summary}</p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-2">
+                          <Clock className="w-3 h-3" />
+                          {entry.actor} · {timeAgo(entry.timestamp)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center gap-2">
+              <StickyNote className="w-4 h-4 text-primary" />
+              <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Notes</h2>
+              <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">{MOCK_CONTACT_NOTES.length}</span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto divide-y divide-border/40 max-h-96">
+              {MOCK_CONTACT_NOTES.map((note) => (
+                <div key={note.id} className="px-5 py-4">
+                  <p className="text-sm text-foreground leading-relaxed mb-2">{note.text}</p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Clock className="w-3 h-3" />
+                    {note.author} · {timeAgo(note.timestamp)}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

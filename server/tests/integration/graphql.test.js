@@ -182,4 +182,171 @@ describe('POST /graphql', () => {
       contactIds: expect.arrayContaining(['contact-seed-my-1', contactId])
     });
   });
+
+  it('bulk creates contacts and preserves a blank last name when provided', async () => {
+    const app = await createApp({
+      dataStore: createMockDataStore()
+    });
+
+    const response = await request(app)
+      .post('/graphql')
+      .send({
+        query: `
+          mutation BulkCreateContacts($clientId: ID!, $inputs: [CreateContactInput!]!) {
+            bulkCreateContacts(clientId: $clientId, inputs: $inputs) {
+              id
+              firstName
+              lastName
+              title
+              email
+              clientIds
+            }
+          }
+        `,
+        variables: {
+          clientId: 'my-1',
+          inputs: [
+            {
+              firstName: 'Yomesh',
+              lastName: '',
+              title: 'Senior Frontend Engineer II',
+              email: 'yomesh@example.com',
+              isPrimary: false
+            },
+            {
+              firstName: 'Jordan',
+              lastName: 'Smith',
+              title: 'VP Sales',
+              email: 'jordan@example.com',
+              isPrimary: false
+            }
+          ]
+        }
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.bulkCreateContacts).toHaveLength(2);
+    expect(response.body.data.bulkCreateContacts[0]).toMatchObject({
+      firstName: 'Yomesh',
+      lastName: '',
+      title: 'Senior Frontend Engineer II',
+      email: 'yomesh@example.com',
+      clientIds: ['my-1']
+    });
+    expect(response.body.data.bulkCreateContacts[1]).toMatchObject({
+      firstName: 'Jordan',
+      lastName: 'Smith',
+      title: 'VP Sales',
+      email: 'jordan@example.com',
+      clientIds: ['my-1']
+    });
+  });
+
+  it('updates an existing contact', async () => {
+    const app = await createApp({
+      dataStore: createMockDataStore()
+    });
+
+    const response = await request(app)
+      .post('/graphql')
+      .send({
+        query: `
+          mutation UpdateContact($id: ID!, $input: UpdateContactInput!) {
+            updateContact(id: $id, input: $input) {
+              id
+              firstName
+              lastName
+              title
+              email
+              phone
+              linkedIn
+              isPrimary
+              clientIds
+            }
+          }
+        `,
+        variables: {
+          id: 'contact-seed-my-1',
+          input: {
+            firstName: 'Jennifer',
+            lastName: 'Walsh',
+            title: 'Regional Director',
+            email: 'jennifer.walsh@synergyproperties.com',
+            phone: '303-555-1111',
+            linkedIn: 'https://www.linkedin.com/in/jenniferwalsh',
+            isPrimary: true
+          }
+        }
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.updateContact).toMatchObject({
+      id: 'contact-seed-my-1',
+      firstName: 'Jennifer',
+      lastName: 'Walsh',
+      title: 'Regional Director',
+      email: 'jennifer.walsh@synergyproperties.com',
+      phone: '303-555-1111',
+      linkedIn: 'https://www.linkedin.com/in/jenniferwalsh',
+      isPrimary: true,
+      clientIds: ['my-1']
+    });
+  });
+
+  it('deletes a contact and removes it from linked client contact ids', async () => {
+    const app = await createApp({
+      dataStore: createMockDataStore()
+    });
+
+    const response = await request(app)
+      .post('/graphql')
+      .send({
+        query: `
+          mutation DeleteContact($id: ID!) {
+            deleteContact(id: $id) {
+              id
+              firstName
+              lastName
+              clientIds
+            }
+          }
+        `,
+        variables: {
+          id: 'contact-seed-my-1'
+        }
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.deleteContact).toEqual({
+      id: 'contact-seed-my-1',
+      firstName: 'Jennifer',
+      lastName: 'Walsh',
+      clientIds: ['my-1']
+    });
+
+    const verifyResponse = await request(app)
+      .post('/graphql')
+      .send({
+        query: `
+          query VerifyDeletedContact($id: ID!, $clientId: ID!) {
+            contact(id: $id) {
+              id
+            }
+            client(id: $clientId) {
+              id
+              contactIds
+            }
+          }
+        `,
+        variables: {
+          id: 'contact-seed-my-1',
+          clientId: 'my-1'
+        }
+      });
+
+    expect(verifyResponse.statusCode).toBe(200);
+    expect(verifyResponse.body.data.contact).toBeNull();
+    expect(verifyResponse.body.data.client.id).toBe('my-1');
+    expect(verifyResponse.body.data.client.contactIds).not.toContain('contact-seed-my-1');
+  });
 });

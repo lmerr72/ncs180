@@ -15,6 +15,9 @@ const typeDefs = `
     createClient(input: CreateClientInput!): Client!
     createProspect(input: CreateProspectInput!): Client!
     createContact(clientId: ID!, input: CreateContactInput!): Contact!
+    bulkCreateContacts(clientId: ID!, inputs: [CreateContactInput!]!): [Contact!]!
+    updateContact(id: ID!, input: UpdateContactInput!): Contact!
+    deleteContact(id: ID!): Contact!
   }
 
   type HealthStatus {
@@ -109,6 +112,16 @@ const typeDefs = `
     isPrimary: Boolean
   }
 
+  input UpdateContactInput {
+    firstName: String!
+    lastName: String!
+    title: String
+    email: String
+    phone: String
+    linkedIn: String
+    isPrimary: Boolean
+  }
+
   type File {
     clientId: ID!
     uploadDate: String!
@@ -163,7 +176,13 @@ const resolvers = {
     createProspect: async (_parent, { input }, { dataStore }) =>
       dataStore.createProspect(input),
     createContact: async (_parent, { clientId, input }, { dataStore }) =>
-      dataStore.createContact(clientId, input)
+      dataStore.createContact(clientId, input),
+    bulkCreateContacts: async (_parent, { clientId, inputs }, { dataStore }) =>
+      dataStore.bulkCreateContacts(clientId, inputs),
+    updateContact: async (_parent, { id, input }, { dataStore }) =>
+      dataStore.updateContact(id, input),
+    deleteContact: async (_parent, { id }, { dataStore }) =>
+      dataStore.deleteContact(id)
   }
 };
 

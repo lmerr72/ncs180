@@ -299,6 +299,83 @@ function createPostgresDataStore({ prisma } = {}) {
       return mapContact(created);
     },
 
+    async bulkCreateContacts(clientId, inputs) {
+      const createdContacts = [];
+
+      for (const input of inputs) {
+        createdContacts.push(await this.createContact(clientId, input));
+      }
+
+      return createdContacts;
+    },
+
+    async updateContact(id, input) {
+      const prismaClient = getPrismaClient();
+      const updated = await runPrismaOperation('updateContact', async () => {
+        const existing = await prismaClient.contact.findUnique({
+          where: { id }
+        });
+
+        if (!existing) {
+          throw new Error(`Contact ${id} was not found.`);
+        }
+
+        return prismaClient.contact.update({
+          where: { id },
+          data: {
+            firstName: input.firstName.trim(),
+            lastName: input.lastName.trim(),
+            title: input.title?.trim() || null,
+            email: input.email?.trim() || null,
+            phone: input.phone?.trim() || null,
+            linkedIn: input.linkedIn?.trim() || null,
+            isPrimary: input.isPrimary ?? false
+          }
+        });
+      });
+
+      return mapContact(updated);
+    },
+
+    async deleteContact(id) {
+      const prismaClient = getPrismaClient();
+      const deleted = await runPrismaOperation('deleteContact', async () => {
+        const existing = await prismaClient.contact.findUnique({
+          where: { id }
+        });
+
+        if (!existing) {
+          throw new Error(`Contact ${id} was not found.`);
+        }
+
+        await Promise.all(
+          (existing.clientIds ?? []).map(async (clientId) => {
+            const client = await prismaClient.client.findUnique({
+              where: { id: clientId }
+            });
+
+            if (!client) {
+              return;
+            }
+
+            const nextContactIds = (client.contactIds ?? []).filter((contactId) => contactId !== id);
+            await prismaClient.client.update({
+              where: { id: clientId },
+              data: {
+                contactIds: nextContactIds
+              }
+            });
+          })
+        );
+
+        return prismaClient.contact.delete({
+          where: { id }
+        });
+      });
+
+      return mapContact(deleted);
+    },
+
     async disconnect() {
       const prismaClient = getPrismaClient();
       await prismaClient.$disconnect();

@@ -1,14 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Users, Building, Building2, TrendingUp, Filter, Search, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Users, Building, Building2, TrendingUp, Filter, Search, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Compass, Sparkles, ExternalLink, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DetailCard } from "@/components/shared/DetailCard";
-import { Client } from "@/types/api";
+import { Client, UserProfile } from "@/types/api";
 import { daysFromToday } from "@/helpers/formatters";
 import { useClients } from "@/context/ClientsContext";
-
-
+import { MOCK_CLIENT_REPS } from "@/data/mock_client_reps";
 
 type SortField = "companyName" | "unitCount" | "totalPlacements" | "placementsThisYear" | null;
 type SortDir = "asc" | "desc";
@@ -43,16 +42,71 @@ const bucketColors: Record<number, string> = {
   3: "bg-amber-100 text-amber-700 border border-amber-200",
 };
 
-function enrichClients() {
+type ApolloTerritoryOpportunity = {
+  id: string;
+  name: string;
+  website: string;
+  linkedIn: string;
+  domain: string;
+  state: string;
+  city: string;
+  location: string;
+  industry: string;
+  employeeCount: number | null;
+};
 
+type ApolloTerritoryResponse = {
+  configured: boolean;
+  territoryStates: string[];
+  opportunities: ApolloTerritoryOpportunity[];
+  warnings: string[];
+  error?: string;
+};
+
+function resolveTerritoryStates(currentUser: UserProfile | null, myClients: Client[]) {
+  if (currentUser) {
+    const matchedRep = MOCK_CLIENT_REPS.find((rep) => (
+      rep.firstName.toLowerCase() === currentUser.firstName.toLowerCase() &&
+      rep.lastName.toLowerCase() === currentUser.lastName.toLowerCase()
+    ));
+
+    if (matchedRep?.territoryStates?.length) {
+      return matchedRep.territoryStates;
+    }
+  }
+
+  return Array.from(new Set(
+    myClients
+      .map((client) => client.address?.state)
+      .filter((state): state is string => Boolean(state))
+  )).slice(0, 6);
+}
+
+function formatCompactNumber(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: value >= 1000 ? 1 : 0,
+  }).format(value);
 }
 
 export default function MyClients() {
-  const { myClients: assignedClients, loading } = useClients();
+  const { myClients: assignedClients, allClients, currentUser, loading } = useClients();
   const myClients = assignedClients.filter((client) => client.status !== "prospecting");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [territoryData, setTerritoryData] = useState<ApolloTerritoryResponse | null>(null);
+  const [territoryLoading, setTerritoryLoading] = useState(false);
+  const [territoryError, setTerritoryError] = useState<string | null>(null);
+  const [territoryRefreshKey, setTerritoryRefreshKey] = useState(0);
+
+  const territoryStates = resolveTerritoryStates(currentUser, myClients);
+  const territoryKey = territoryStates.join("|");
+  const excludedCompanyNames = allClients.map((client) => client.companyName);
+  const excludedDomains = allClients.map((client) => client.website || "");
+  const excludedCompanyKey = excludedCompanyNames.join("|");
+  const excludedDomainKey = excludedDomains.join("|");
 
   const totalClients = myClients.length;
   const totalUnits = myClients.reduce((sum, client) => sum + client.unitCount, 0);
@@ -99,6 +153,60 @@ export default function MyClients() {
     setSortDir(next.dir);
   }
 
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadTerritoryOpportunities() {
+      if (territoryStates.length === 0) {
+        setTerritoryData(null);
+        setTerritoryError(null);
+        return;
+      }
+
+      setTerritoryLoading(true);
+      setTerritoryError(null);
+
+      try {
+        const response = await fetch("/api/apollo/territory-opportunities", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            territoryStates,
+            excludedCompanyNames,
+            excludedDomains,
+            limit: 6,
+          }),
+        });
+        const payload = (await response.json()) as ApolloTerritoryResponse;
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Unable to load Apollo territory opportunities.");
+        }
+
+        if (!ignore) {
+          setTerritoryData(payload);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setTerritoryError(error instanceof Error ? error.message : "Unable to load Apollo territory opportunities.");
+          setTerritoryData(null);
+        }
+      } finally {
+        if (!ignore) {
+          setTerritoryLoading(false);
+        }
+      }
+    }
+
+    void loadTerritoryOpportunities();
+
+    return () => {
+      ignore = true;
+    };
+  }, [territoryKey, excludedCompanyKey, excludedDomainKey, territoryRefreshKey]);
+
   const stats = [
     { label: "Total Clients", value: totalClients, icon: Users, color: "text-blue-600", bg: "bg-blue-100" },
     { label: "Total Units", value: totalUnits.toLocaleString(), icon: Building2, color: "text-indigo-600", bg: "bg-indigo-100" },
@@ -124,6 +232,123 @@ export default function MyClients() {
         
         ))}
       </div>
+
+      {/* <div className="mb-8 rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+        <div className="flex flex-col gap-4 border-b border-border/60 bg-muted/10 p-5 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                <Compass className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">Territory Opportunities</h2>
+                <p className="text-sm text-muted-foreground">
+                  Apollo-sourced organizations in your coverage states that are not already in the client list.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {territoryStates.length > 0 ? territoryStates.map((state) => (
+                <span
+                  key={state}
+                  className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700"
+                >
+                  {state}
+                </span>
+              )) : (
+                <span className="text-sm text-muted-foreground">No territory states mapped yet.</span>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setTerritoryRefreshKey((current) => current + 1);
+            }}
+            className="inline-flex items-center gap-2 self-start rounded-xl border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-60"
+            disabled={territoryLoading || territoryStates.length === 0}
+          >
+            <RefreshCw className={cn("h-4 w-4", territoryLoading && "animate-spin")} />
+            Refresh
+          </button>
+        </div>
+
+        <div className="p-5">
+          {territoryError ? (
+            <div className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{territoryError}</span>
+            </div>
+          ) : territoryLoading ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="animate-pulse rounded-2xl border border-border/60 bg-muted/20 p-4">
+                  <div className="mb-3 h-4 w-2/3 rounded bg-muted" />
+                  <div className="mb-2 h-3 w-full rounded bg-muted" />
+                  <div className="h-3 w-1/2 rounded bg-muted" />
+                </div>
+              ))}
+            </div>
+          ) : territoryData?.opportunities?.length ? (
+            <>
+              <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-700">
+                  <Sparkles className="h-4 w-4" />
+                  {territoryData.opportunities.length} opportunities found
+                </span>
+                {territoryData.warnings.map((warning) => (
+                  <span key={warning} className="text-amber-700">
+                    {warning}
+                  </span>
+                ))}
+              </div>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {territoryData.opportunities.map((opportunity) => (
+                  <div key={opportunity.id} className="rounded-2xl border border-border/60 bg-background p-4 shadow-sm">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-foreground">{opportunity.name}</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {opportunity.location || opportunity.state || "Location unavailable"}
+                        </p>
+                      </div>
+                      {opportunity.website && (
+                        <a
+                          href={opportunity.website}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                          aria-label={`Open ${opportunity.name} website`}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      )}
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Industry</span>
+                        <span className="font-medium text-foreground">{opportunity.industry || "Unknown"}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Employees</span>
+                        <span className="font-medium text-foreground">{formatCompactNumber(opportunity.employeeCount)}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Domain</span>
+                        <span className="font-medium text-foreground">{opportunity.domain || "—"}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-dashed border-border bg-muted/10 px-4 py-5 text-sm text-muted-foreground">
+              {territoryData?.warnings?.[0] || "Apollo did not return new territory opportunities yet."}
+            </div>
+          )}
+        </div>
+      </div> */}
 
       <div className="mb-4 bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
         <div className="p-4 border-b border-border/50 flex flex-col sm:flex-row justify-between items-center gap-4 bg-muted/10">

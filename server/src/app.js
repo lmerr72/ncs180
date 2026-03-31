@@ -1,5 +1,6 @@
 require('./loadEnv');
 
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -78,6 +79,8 @@ async function createApp({
   apolloService = createApolloService()
 } = {}) {
   const app = express();
+  const isProduction = process.env.NODE_ENV === 'production';
+  const clientDevServerUrl = process.env.CLIENT_DEV_SERVER_URL || 'http://localhost:5173';
 
   app.use(express.json());
   app.use(cors());
@@ -309,6 +312,93 @@ async function createApp({
     }
   });
 
+  app.post('/api/apollo/company-contacts', async (req, res) => {
+    const companyName = typeof req.body?.companyName === 'string' ? req.body.companyName.trim() : '';
+    const website = typeof req.body?.website === 'string' ? req.body.website.trim() : '';
+
+    if (companyName.length < 2) {
+      res.status(400).json({
+        error: 'companyName must be at least 2 characters long.'
+      });
+      return;
+    }
+
+    try {
+      const payload = await apolloService.getCompanyPeople({
+        companyName,
+        website
+      });
+
+      res.json(payload);
+    } catch (error) {
+      res.status(502).json({
+        error: error instanceof Error ? error.message : 'Unable to fetch Apollo company contacts.'
+      });
+    }
+  });
+
+  app.post('/api/apollo/contact-health', async (req, res) => {
+    const companyName = typeof req.body?.companyName === 'string' ? req.body.companyName.trim() : '';
+    const website = typeof req.body?.website === 'string' ? req.body.website.trim() : '';
+    const contacts = Array.isArray(req.body?.contacts) ? req.body.contacts : [];
+
+    if (companyName.length < 2) {
+      res.status(400).json({
+        error: 'companyName must be at least 2 characters long.'
+      });
+      return;
+    }
+
+    try {
+      const payload = await apolloService.getContactHealth({
+        companyName,
+        website,
+        contacts
+      });
+
+      res.json(payload);
+    } catch (error) {
+      res.status(502).json({
+        error: error instanceof Error ? error.message : 'Unable to fetch Apollo contact health.'
+      });
+    }
+  });
+
+  app.post('/api/apollo/territory-opportunities', async (req, res) => {
+    const territoryStates = Array.isArray(req.body?.territoryStates)
+      ? req.body.territoryStates.filter((state) => typeof state === 'string').map((state) => state.trim()).filter(Boolean)
+      : [];
+    const excludedCompanyNames = Array.isArray(req.body?.excludedCompanyNames)
+      ? req.body.excludedCompanyNames.filter((name) => typeof name === 'string')
+      : [];
+    const excludedDomains = Array.isArray(req.body?.excludedDomains)
+      ? req.body.excludedDomains.filter((domain) => typeof domain === 'string')
+      : [];
+    const limit = Number(req.body?.limit || 6);
+
+    if (territoryStates.length === 0) {
+      res.status(400).json({
+        error: 'territoryStates must contain at least one state.'
+      });
+      return;
+    }
+
+    try {
+      const payload = await apolloService.getTerritoryOpportunities({
+        territoryStates,
+        excludedCompanyNames,
+        excludedDomains,
+        limit: Number.isFinite(limit) ? Math.max(1, Math.min(limit, 12)) : 6
+      });
+
+      res.json(payload);
+    } catch (error) {
+      res.status(502).json({
+        error: error instanceof Error ? error.message : 'Unable to fetch Apollo territory opportunities.'
+      });
+    }
+  });
+
   app.post('/api/seed-client', async (req, res) => {
     const companyName = req.body?.companyName;
     const city = typeof req.body?.city === 'string' ? req.body.city : '';
@@ -364,6 +454,21 @@ async function createApp({
       })
     })
   );
+
+  if (isProduction) {
+    const clientDistPath = path.resolve(__dirname, '../../client/dist');
+    const clientIndexPath = path.join(clientDistPath, 'index.html');
+
+    app.use(express.static(clientDistPath));
+
+    app.get(/^(?!\/(?:api|graphql)(?:\/|$)).*/, (_req, res) => {
+      res.sendFile(clientIndexPath);
+    });
+  } else {
+    app.get(/^(?!\/(?:api|graphql)(?:\/|$)).*/, (req, res) => {
+      res.redirect(302, buildClientDevRedirectUrl(clientDevServerUrl, req.originalUrl || '/'));
+    });
+  }
 
   app.locals.dataStore = dataStore;
 
@@ -443,6 +548,11 @@ function readTokenMeta(rawTokenMeta) {
   } catch {
     return null;
   }
+}
+
+function buildClientDevRedirectUrl(baseUrl, requestPath) {
+  const url = new URL(requestPath || '/', baseUrl);
+  return url.toString();
 }
 
 module.exports = {
