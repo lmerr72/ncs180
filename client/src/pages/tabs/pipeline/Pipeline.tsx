@@ -11,10 +11,10 @@ import { SimpleStatCard } from "@/components/shared/SimpleStatCard";
 import { useClients } from "@/context/ClientsContext";
 
 const STATUS_STYLES: Record<ProspectStatus, string> = {
-  "verbal":           "bg-sky-100    text-sky-700    border-sky-200",
-  "in_communication": "bg-teal-100   text-teal-700   border-teal-200",
-  "awaiting_review":  "bg-amber-100  text-amber-700  border-amber-200",
   "not_started":          "bg-orange-100 text-orange-700 border-orange-200",
+  "in_communication": "bg-teal-100   text-teal-700   border-teal-200",
+  "verbal":           "bg-sky-100    text-sky-700    border-sky-200",
+  "awaiting_review":  "bg-amber-100  text-amber-700  border-amber-200",
   "closed":"bg-gray-100 text-gray-700 border-gray-200",
   "inactive":"bg-slate-100 text-slate-600 border-slate-200"
 };

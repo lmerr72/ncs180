@@ -143,7 +143,7 @@ function buildSlug(value) {
 }
 
 function buildStatusPair(index) {
-  const statusCycle = ["active", "inactive", "prospecting"];
+  const statusCycle = ["active", "inactive", "onboarding","prospecting"];
   const status = statusCycle[index % statusCycle.length];
 
   if (status === "active") {

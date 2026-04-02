@@ -5,6 +5,7 @@ const { PrismaPg } = require('@prisma/adapter-pg');
 const {
   toPrismaClientCreateManyInput,
   toPrismaContactCreateManyInput,
+  toPrismaOnboardingChecklistCreateManyInput,
   toPrismaUserCreateManyInput
 } = require('../src/graphql/seedData');
 
@@ -42,10 +43,15 @@ function wrapSeedError(error) {
 async function main() {
   await prisma.contact.deleteMany();
   await prisma.client.deleteMany();
+  await prisma.onboardingChecklist.deleteMany();
   await prisma.user.deleteMany();
 
   await prisma.user.createMany({
     data: toPrismaUserCreateManyInput()
+  });
+
+  await prisma.onboardingChecklist.createMany({
+    data: toPrismaOnboardingChecklistCreateManyInput()
   });
 
   await prisma.client.createMany({

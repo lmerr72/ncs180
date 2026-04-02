@@ -92,7 +92,7 @@ function formatCompactNumber(value: number | null | undefined): string {
 
 export default function MyClients() {
   const { myClients: assignedClients, allClients, currentUser, loading } = useClients();
-  const myClients = assignedClients.filter((client) => client.status !== "prospecting");
+  const myClients = assignedClients.filter((client) => client.clientStatus === "active" || client.clientStatus === "onboarding");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");

@@ -49,8 +49,16 @@ export type Timezone  =
   | "Pacific Time (PT)"
   | "Alaska Time (AKT)"
   | "Hawaii Time (HT)";
-export type ClientStatus = 'active' | 'inactive' | 'prospecting';
+export type ClientStatus = 'active' | 'inactive' | 'prospecting' | 'onboarding';
 export type ProspectStatus = 'verbal' | 'not_started' | 'in_communication' | 'awaiting_review'  | 'closed' | 'inactive';
+
+export interface OnboardingChecklist {
+  agreement_signed:    boolean;
+  property_list_created: boolean;
+  ach:                boolean;
+  integration_setup:     boolean;
+  first_file_placed:     boolean;
+}
 
 export interface ClientRep {
   id: string;
@@ -84,7 +92,7 @@ export interface Prospect {
   assignedRep?: UserProfile;
   createdDate?: string;
   createdAt?: string;
-  status: ClientStatus;
+  clientStatus: ClientStatus;
   prospectStatus?: ProspectStatus;
   isCorporate?: boolean;
   website?:string;
@@ -94,7 +102,7 @@ export interface Prospect {
 }
 
 export interface Client extends Prospect{
-  clientId: string; // will need to do some refactoring to separate this from id
+  clientId: string;
   headquarters_id?: string; // this is an id link to another client related to the headquarters
   headquarters?: string;
   firstFilePlacementDate?: string | null;
@@ -107,6 +115,7 @@ export interface Client extends Prospect{
   placementsThisYear?: number;
   recoveryRate?: number;
   bucket?: 1 | 2 | 3;
+  onboardingChecklist?: OnboardingChecklist | null;
 }
 
 export interface History {

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { MOCK_MY_CLIENTS } from "@/lib/mock-data";
 import { BarChart3, Users, UserMinus, TrendingUp, MapPin } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -12,10 +11,11 @@ import { STATE_TERRITORIES,type RepKey } from "@/lib/mock-data";
 import { StatCard } from "@/components/shared/StatCard";
 
 
-const avgRecoveryRate = (() => {
-  const rates = MOCK_MY_CLIENTS.map(c => c.recoveryRate);
-  return (rates.reduce((a, b) => a + b, 0) / rates.length).toFixed(1);
-})();
+const avgRecoveryRate = 0
+// const avgRecoveryRate = (() => {
+//   const rates = MOCK_MY_CLIENTS.map(c => c.recoveryRate);
+//   return (rates.reduce((a, b) => a + b, 0) / rates.length).toFixed(1);
+// })();
 const activeCount = ACTIVE_CLIENTS_HISTORY[ACTIVE_CLIENTS_HISTORY.length - 1].clients;
 const prevYearCount = ACTIVE_CLIENTS_HISTORY[ACTIVE_CLIENTS_HISTORY.length - 2].clients;
 const yoyChange = activeCount - prevYearCount;

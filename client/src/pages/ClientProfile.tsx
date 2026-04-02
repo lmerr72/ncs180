@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "@apollo/client/react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { CLIENT_EXTRA_DETAILS } from "@/lib/mock-data";
+import { ProspectStatuses } from "@/types/constants";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
   BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -15,11 +16,12 @@ import {
   StickyNote, ClipboardList, Clock, Check, ChevronDown,
   Activity, CircleOff, Search, CalendarDays, PhoneCall, Circle, CheckCircle2,
   BriefcaseBusiness, Sparkles, UserRound, Pencil, Trash2,
+  Handshake,
 } from "lucide-react";
 import { DetailCard } from "@/components/shared/DetailCard";
 import { LinkedInIcon, LinkedInUpdatesCard, type LinkedInPostItem } from "@/components/shared/LinkedInUpdatesCard";
 import { cn } from "@/lib/utils";
-import type { Client, UserProfile } from "@/types/api";
+import type { Client, OnboardingChecklist, ProspectStatus, UserProfile } from "@/types/api";
 import { useTasks } from "@/context/TasksContext";
 import type { Importance, TaskCompanyOrigin } from "@/lib/mock-data";
 import { ClientStatus,TaskType } from "@/types/api";
@@ -85,6 +87,17 @@ const DELETE_CONTACT_MUTATION = gql`
     }
   }
   ${CONTACT_FIELDS}
+`;
+
+const UPDATE_CLIENT_MUTATION = gql`
+  mutation UpdateClient($id: ID!, $input: UpdateClientInput!) {
+    updateClient(id: $id, input: $input) {
+      id
+      clientId
+      clientStatus
+      prospectStatus
+    }
+  }
 `;
 
 function formatMonthYear(dateStr: string | null | undefined): string {
@@ -234,7 +247,84 @@ const STATUS_CONFIG: Record<ClientStatus, { label: string; icon: React.ElementTy
   active:      { label: "Active",      icon: Activity,  badge: "bg-emerald-100 text-emerald-700 border border-emerald-200", dot: "bg-emerald-500", ring: "ring-emerald-300" },
   inactive:    { label: "Inactive",    icon: CircleOff, badge: "bg-red-100 text-red-700 border border-red-200",             dot: "bg-red-500",     ring: "ring-red-300"     },
   prospecting: { label: "Prospecting", icon: Search,    badge: "bg-amber-100 text-amber-700 border border-amber-200",       dot: "bg-amber-500",   ring: "ring-amber-300"   },
+  onboarding: { label: "Onboarding", icon: Handshake,    badge: "bg-violet-100 text-violet-700 border border-violet-200",       dot: "bg-violet-500",   ring: "ring-violet-300"   },
 };
+
+const PROSPECT_STATUS_CONFIG: Record<Exclude<ProspectStatus, "inactive">, { badge: string; dot: string }> = {
+  not_started:      { badge: "bg-slate-100 text-slate-700 border border-slate-200",           dot: "bg-slate-500" },
+  in_communication: { badge: "bg-sky-100 text-sky-700 border border-sky-200",                 dot: "bg-sky-500" },
+  awaiting_review:  { badge: "bg-violet-100 text-violet-700 border border-violet-200",        dot: "bg-violet-500" },
+  verbal:           { badge: "bg-emerald-100 text-emerald-700 border border-emerald-200",     dot: "bg-emerald-500" },
+  closed:           { badge: "bg-amber-100 text-amber-700 border border-amber-200",           dot: "bg-amber-500" },
+};
+const PROSPECT_STATUS_OPTIONS = ProspectStatuses as Exclude<ProspectStatus, "inactive">[];
+
+function OnboardingWidget({
+  checklist,
+  clientId,
+}: {
+  checklist: OnboardingChecklist;
+  clientId: string;
+}) {
+  const completedCount = Object.values(checklist).reduce((acc, val) => acc + (!!val ? 1 : 0), 0);
+  return (
+    <div className="bg-card rounded-2xl border border-violet-200 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-violet-100 bg-violet-50/70 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Handshake className="w-4 h-4 text-violet-600" />
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Onboarding</h2>
+        </div>
+        <div className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-3 py-1.5 text-xs font-semibold text-violet-700">
+          <Hash className="w-3.5 h-3.5" />
+          {clientId}
+        </div>
+      </div>
+      <div className="px-6 py-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">Complete the onboarding checklist to move this client into an active account.</p>
+          <span className="text-sm font-semibold text-foreground">
+            {completedCount}/{Object.values(checklist).length}
+          </span>
+        </div>
+        <div className="space-y-3">
+          {Object.keys(checklist).map((k) => (
+            <div
+              key={k}
+              className={cn(
+                "flex items-center gap-3 rounded-2xl border px-4 py-3",
+                checklist[k]
+                  ? "border-emerald-200 bg-emerald-50/70"
+                  : "border-border bg-muted/10"
+              )}
+            >
+              <span
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-full border",
+                  checklist[k]
+                    ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+                    : "border-slate-200 bg-white text-slate-400"
+                )}
+              >
+                <CheckCircle2 className="w-4 h-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground">{formatLabel(k)}</p>
+              </div>
+              <span
+                className={cn(
+                  "text-xs font-semibold",
+                  checklist[k] ? "text-emerald-700" : "text-muted-foreground"
+                )}
+              >
+                {checklist[k] ? "Done" : "Pending"}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const INACTIVE_REASONS: InactiveReason[] = [
   "Moved to another company",
@@ -331,6 +421,22 @@ function getLinkedInPosts(companyLinkedInUrl: string): LinkedInPostItem[] {
     .slice(0, 3);
 }
 
+function toProspectStatusEnum(status: Exclude<ProspectStatus, "inactive">) {
+  switch (status) {
+    case "not_started":
+      return "NOT_STARTED";
+    case "in_communication":
+      return "IN_COMMUNICATION";
+    case "awaiting_review":
+      return "AWAITING_REVIEW";
+    case "verbal":
+      return "VERBAL";
+    case "closed":
+    default:
+      return "CLOSED";
+  }
+}
+
 
 export default function ClientProfile() {
   const { id } = useParams();
@@ -346,11 +452,10 @@ export default function ClientProfile() {
   const originHref = fromPipeline ? "/pipeline" : fromMyClients ? "/my-clients" : "/all-clients";
 
   const routeState = location.state as { prospect?: Client } | null;
-  const client = allClients.find(c => c.id === id) ?? routeState?.prospect ?? null;
+  const client = allClients.find(c => c.id === id) ?? routeState?.prospect ?? null; // hippo replace this with something more efficient
   const initialAssignedRep = reps.find(r => r.id === client?.assignedRepId) ?? null;
 
   const extra = id ? CLIENT_EXTRA_DETAILS[id] : undefined;
-  const isProspectView = client?.status === 'prospecting';
   const { tasks, addTask, toggleTask } = useTasks();
   const extraLinks = extra as ({ website?: string; linkedIn?: string } | undefined);
   const companyWebsiteUrl = extraLinks?.website ?? client?.website ?? "";
@@ -415,10 +520,28 @@ export default function ClientProfile() {
       id: string;
     };
   }>(DELETE_CONTACT_MUTATION);
+  const [updateClientMutation] = useMutation<{
+    updateClient: {
+      id: string;
+      clientId?: string | null;
+      clientStatus?: "ACTIVE" | "INACTIVE" | "PROSPECTING" | "ONBOARDING" | null;
+      prospectStatus?: "VERBAL" | "NOT_STARTED" | "IN_COMMUNICATION" | "AWAITING_REVIEW" | "CLOSED" | null;
+      // onboardingChecklist?: OnboardingChecklist; hippo
+    };
+  }>(UPDATE_CLIENT_MUTATION);
 
   // Status state
-  const [status, setStatus] = useState<ClientStatus>(isProspectView ? "prospecting" : "active");
+  const [status, setStatus] = useState<ClientStatus>(client?.clientStatus ?? "active"); // hippo replace default with laoder when client isnt ready
+  const [displayClientId, setDisplayClientId] = useState(client?.clientId ?? "");
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [prospectStatus, setProspectStatus] = useState<Exclude<ProspectStatus, "inactive">>(
+    (client?.prospectStatus && client.prospectStatus !== "inactive" ? client.prospectStatus : "not_started")
+  );
+  const [onboardingChecklist, setOnboardingChecklist] = useState<OnboardingChecklist | null>(
+    client?.onboardingChecklist ?? null
+  );
+  const [showProspectStatusDropdown, setShowProspectStatusDropdown] = useState(false);
+  const [prospectStatusSaving, setProspectStatusSaving] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [apolloSnapshot, setApolloSnapshot] = useState<ApolloSnapshotResponse | null>(null);
   const [apolloLoading, setApolloLoading] = useState(false);
@@ -429,6 +552,7 @@ export default function ClientProfile() {
   const [repPending, setRepPending] = useState(false);
   const [showRepDropdown, setShowRepDropdown] = useState(false);
   const repDropdownRef = useRef<HTMLDivElement>(null);
+  const prospectStatusDropdownRef = useRef<HTMLDivElement>(null);
 
   // Toast state
   const [toast, setToast] = useState<string | null>(null);
@@ -443,6 +567,40 @@ export default function ClientProfile() {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showRepDropdown]);
+
+  useEffect(() => {
+    if (!showProspectStatusDropdown) return;
+    function handleClick(e: MouseEvent) {
+      if (
+        prospectStatusDropdownRef.current
+        && !prospectStatusDropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowProspectStatusDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showProspectStatusDropdown]);
+
+  useEffect(() => {
+    setStatus(client?.clientStatus ?? "active");
+  }, [client?.clientStatus]);
+
+  const isProspectView = status === "prospecting";
+
+  useEffect(() => {
+    if (client?.prospectStatus && client.prospectStatus !== "inactive") {
+      setProspectStatus(client.prospectStatus);
+    }
+  }, [client?.prospectStatus]);
+
+  useEffect(() => {
+    setDisplayClientId(client?.clientId ?? "");
+  }, [client?.clientId]);
+
+  useEffect(() => {
+    setOnboardingChecklist(client?.onboardingChecklist ?? null);
+  }, [client?.onboardingChecklist]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -540,30 +698,31 @@ export default function ClientProfile() {
     setApolloLoading(true);
     setApolloError(null);
 
-    fetch(`/api/apollo/account-snapshot?${params.toString()}`, {
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        const payload = await response.json() as ApolloSnapshotResponse;
-        if (!response.ok) {
-          throw new Error(payload.error ?? "Unable to load Apollo account snapshot.");
-        }
+    // hippo commented out for now to not waste credits
+    // fetch(`/api/apollo/account-snapshot?${params.toString()}`, {
+    //   signal: controller.signal,
+    // })
+    //   .then(async (response) => {
+    //     const payload = await response.json() as ApolloSnapshotResponse;
+    //     if (!response.ok) {
+    //       throw new Error(payload.error ?? "Unable to load Apollo account snapshot.");
+    //     }
 
-        setApolloSnapshot(payload);
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) {
-          return;
-        }
+    //     setApolloSnapshot(payload);
+    //   })
+    //   .catch((error: unknown) => {
+    //     if (controller.signal.aborted) {
+    //       return;
+    //     }
 
-        setApolloSnapshot(null);
-        setApolloError(error instanceof Error ? error.message : "Unable to load Apollo account snapshot.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setApolloLoading(false);
-        }
-      });
+    //     setApolloSnapshot(null);
+    //     setApolloError(error instanceof Error ? error.message : "Unable to load Apollo account snapshot.");
+    //   })
+    //   .finally(() => {
+    //     if (!controller.signal.aborted) {
+    //       setApolloLoading(false);
+    //     }
+    //   });
 
     return () => {
       controller.abort();
@@ -998,6 +1157,58 @@ export default function ClientProfile() {
     }
   }
 
+  async function handleProspectStatusSelect(nextStatus: Exclude<ProspectStatus, "inactive">) {
+    if (!client?.id || nextStatus === prospectStatus || prospectStatusSaving) {
+      setShowProspectStatusDropdown(false);
+      return;
+    }
+
+    setProspectStatusSaving(true);
+    try {
+      if (nextStatus === 'closed') {
+        const response = await updateClientMutation({
+          variables: {
+            id: client.id,
+            input: {
+              prospectStatus: toProspectStatusEnum(nextStatus),
+              clientStatus: "ONBOARDING",
+              createdClientDate: new Date()
+            }
+          },
+          refetchQueries: ["ClientsData"],
+          awaitRefetchQueries: true
+        });
+        console.info('[ClientProfile]: Updated status to onboarding');
+        setOnboardingChecklist(response.data?.updateClient.onboardingChecklist ?? null);
+        setStatus("onboarding");
+      }
+      else {
+        const response = await updateClientMutation({
+          variables: {
+            id: client.id,
+            input: {
+              prospectStatus: toProspectStatusEnum(nextStatus),
+            }
+          },
+          refetchQueries: ["ClientsData"],
+          awaitRefetchQueries: true
+        });
+      }
+      const previousStatus = prospectStatus;
+      setProspectStatus(nextStatus);
+      
+      setShowProspectStatusDropdown(false);
+      addAudit(`Prospect status changed from ${formatLabel(previousStatus)} to ${formatLabel(nextStatus)}`, "edit");
+      showToast(`Prospect status updated to ${formatLabel(nextStatus)}`);
+    } catch (error) {
+      console.error('[ClientProfile]: Failed to save prospect status', error)
+      showToast(error instanceof Error ? error.message : "Unable to update prospect status.");
+    } finally {
+      console.info('[ClientProfile]: Saved prospect status!')
+      setProspectStatusSaving(false);
+    }
+  }
+
   function handleCreateTask(data: { taskType: TaskType; importance: Importance; dueDate: string; notes: string }) {
     const associatedCompanyOrigin: TaskCompanyOrigin = fromPipeline
       ? "pipeline"
@@ -1017,6 +1228,7 @@ export default function ClientProfile() {
 
   const statusCfg = STATUS_CONFIG[status];
   const StatusIcon = statusCfg.icon;
+  const prospectStatusCfg = PROSPECT_STATUS_CONFIG[prospectStatus];
   const relatedTasks = tasks.filter(task => task.associatedCompanyId === client.id);
   const apolloStatusMessage = (() => {
     if (apolloLoading) return "Loading Apollo account data...";
@@ -1173,6 +1385,7 @@ export default function ClientProfile() {
         {/* Status button */}
         <button
           onClick={() => setShowStatusModal(true)}
+          disabled={client.clientStatus === 'prospecting'}
           className={cn(
             "group inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all shadow-sm hover:shadow-md",
             statusCfg.badge,
@@ -1186,6 +1399,59 @@ export default function ClientProfile() {
           <ChevronDown className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
         </button>
 
+        {status === "prospecting" && (
+          <div className="relative" ref={prospectStatusDropdownRef}>
+            <button
+              onClick={() => !prospectStatusSaving && setShowProspectStatusDropdown((value) => !value)}
+              disabled={prospectStatusSaving}
+              className={cn(
+                "group inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all shadow-sm hover:shadow-md",
+                prospectStatusCfg.badge,
+                prospectStatusSaving && "opacity-70 cursor-not-allowed"
+              )}
+            >
+              <span className={cn("w-2 h-2 rounded-full flex-shrink-0", prospectStatusCfg.dot)} />
+              <BriefcaseBusiness className="w-3.5 h-3.5 flex-shrink-0" />
+              {formatLabel(prospectStatus)}
+              {prospectStatusSaving
+                ? <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                : <ChevronDown className={cn("w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-all", showProspectStatusDropdown && "rotate-180")} />
+              }
+            </button>
+
+            {showProspectStatusDropdown && (
+              <div className="absolute left-0 top-full mt-2 z-40 w-64 bg-card border border-border rounded-2xl shadow-2xl overflow-hidden">
+                <div className="px-3 py-2.5 border-b border-border/50 bg-muted/20">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Prospect Status</p>
+                </div>
+                <div className="py-1.5">
+                  {PROSPECT_STATUS_OPTIONS.map((option) => {
+                    const optionCfg = PROSPECT_STATUS_CONFIG[option];
+                    const isSelected = option === prospectStatus;
+
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => void handleProspectStatusSelect(option)}
+                        disabled={prospectStatusSaving}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3.5 py-2.5 text-sm text-left transition-colors",
+                          isSelected ? "bg-primary/5 text-primary" : "hover:bg-primary/5 hover:text-primary"
+                        )}
+                      >
+                        <span className={cn("w-2 h-2 rounded-full flex-shrink-0", optionCfg.dot)} />
+                        <span className="flex-1 font-medium">{formatLabel(option)}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {repPending && (
           <span className="text-xs text-amber-600 font-medium flex items-center gap-1">
             <Clock className="w-3 h-3" /> Reassignment awaiting approval
@@ -1197,7 +1463,7 @@ export default function ClientProfile() {
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">{client.companyName}</h1>
-          <p className="text-muted-foreground mt-1 text-lg font-mono">{client.clientId}</p>
+          <p className="text-muted-foreground mt-1 text-lg font-mono">{displayClientId || "Pending client ID assignment"}</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
           {(companyWebsiteUrl || companyLinkedInUrl) && (
@@ -1221,6 +1487,9 @@ export default function ClientProfile() {
       </div>
 
       <div className="space-y-8">
+        {status === "onboarding" && onboardingChecklist && displayClientId && (
+          <OnboardingWidget checklist={onboardingChecklist} clientId={displayClientId} />
+        )}
 
         {/* ── 1. CONTACTS (top) ───────────────────────────────────────── */}
         <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
@@ -1905,7 +2174,7 @@ function StatusModal({
           {/* Status radio options */}
           <div className="space-y-2.5">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select Status</p>
-            {(["active", "inactive", "prospecting"] as ClientStatus[]).map(s => {
+            {(["active", "onboarding", "prospecting", "inactive"] as ClientStatus[]).map(s => {
               const cfg = STATUS_CONFIG[s];
               const Icon = cfg.icon;
               const isChosen = selected === s;
@@ -1940,8 +2209,9 @@ function StatusModal({
                     <p className={cn("font-semibold text-sm", isChosen ? "text-foreground" : "text-foreground")}>{formatLabel(s)}</p>
                     <p className="text-xs text-muted-foreground">
                       {s === "active" && "Client is actively engaged and placing"}
-                      {s === "inactive" && "Client has stopped activity — requires reason"}
                       {s === "prospecting" && "Client is in early-stage outreach"}
+                      {s === "onboarding" && "Client is in the process of onboarding"}
+                      {s === "inactive" && "Client has stopped activity — requires reason"}
                     </p>
                   </div>
 

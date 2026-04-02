@@ -14,6 +14,7 @@ const typeDefs = `
   type Mutation {
     createClient(input: CreateClientInput!): Client!
     createProspect(input: CreateProspectInput!): Client!
+    updateClient(id: ID!, input: UpdateClientInput!): Client!
     createContact(clientId: ID!, input: CreateContactInput!): Contact!
     bulkCreateContacts(clientId: ID!, inputs: [CreateContactInput!]!): [Contact!]!
     updateContact(id: ID!, input: UpdateContactInput!): Contact!
@@ -47,10 +48,23 @@ const typeDefs = `
     clientIds: [String!]!
   }
 
+  type OnboardingChecklistItem {
+    id: ID!
+    label: String!
+    completed: Boolean!
+  }
+
+  type OnboardingChecklist {
+    items: [OnboardingChecklistItem!]!
+    completedCount: Int!
+    totalCount: Int!
+  }
+
   enum ClientStatus {
     ACTIVE
     INACTIVE
     PROSPECTING
+    ONBOARDING
   }
 
   enum ProspectStatus {
@@ -112,6 +126,12 @@ const typeDefs = `
     isPrimary: Boolean
   }
 
+  input UpdateClientInput {
+    clientStatus: ClientStatus
+    prospectStatus: ProspectStatus
+    createdClientDate: String
+  }
+
   input UpdateContactInput {
     firstName: String!
     lastName: String!
@@ -149,6 +169,7 @@ const typeDefs = `
     address: Address
     contactIds:[String]
     unitCount: Int!
+    onboardingChecklist: OnboardingChecklist
   }
 `;
 
@@ -175,6 +196,8 @@ const resolvers = {
     createClient: async (_parent, { input }, { dataStore }) => dataStore.createClient(input),
     createProspect: async (_parent, { input }, { dataStore }) =>
       dataStore.createProspect(input),
+    updateClient: async (_parent, { id, input }, { dataStore }) =>
+      dataStore.updateClient(id, input),
     createContact: async (_parent, { clientId, input }, { dataStore }) =>
       dataStore.createContact(clientId, input),
     bulkCreateContacts: async (_parent, { clientId, inputs }, { dataStore }) =>

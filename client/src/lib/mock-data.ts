@@ -172,24 +172,7 @@ type ClientWithBucket = Client & {
   recoveryRate: number;
 };
 
-// Today: March 17 2026. 90% have lastPlacementDate after Mar 17 2025. 2 of 15 are stale (my-6, my-8).
-export const MOCK_MY_CLIENTS: ClientWithBucket[] = [
-  { id: "my-1",  clientId: "CLT-1001", companyName: "Synergy Properties",   headquarters: "Denver CO",    unitCount: 3200,  firstPlacementDate: "2021-03-15", lastPlacementDate: "2025-11-15", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2021-03-15T00:00:00Z", status: getClientStatus("2025-11-15"), bucket: 2, totalPlacements: 4500,  placementsThisYear: 210,  recoveryRate: 8.2  },
-  { id: "my-2",  clientId: "CLT-1002", companyName: "Apex Management",       headquarters: "Austin TX",    unitCount: 8500,  firstPlacementDate: "2020-08-20", lastPlacementDate: "2026-01-20", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2020-08-20T00:00:00Z", status: getClientStatus("2026-01-20"), bucket: 3, totalPlacements: 9200,  placementsThisYear: 380,  recoveryRate: 15.7 },
-  { id: "my-3",  clientId: "CLT-1003", companyName: "Summit Housing",        headquarters: "Denver CO",    unitCount: 2150,  firstPlacementDate: "2022-01-10", lastPlacementDate: "2025-08-12", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2022-01-10T00:00:00Z", status: getClientStatus("2025-08-12"), bucket: 2, totalPlacements: 2100,  placementsThisYear: 95,   recoveryRate: 6.4  },
-  { id: "my-4",  clientId: "CLT-1004", companyName: "Pinnacle Apartments",   headquarters: "Chicago IL",   unitCount: 14200, firstPlacementDate: "2021-06-01", lastPlacementDate: "2025-05-30", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2021-06-01T00:00:00Z", status: getClientStatus("2025-05-30"), bucket: 3, totalPlacements: 7800,  placementsThisYear: 430,  recoveryRate: 21.3 },
-  { id: "my-5",  clientId: "CLT-1005", companyName: "Nexus Group",           headquarters: "Phoenix AZ",   unitCount: 680,   firstPlacementDate: "2023-02-14", lastPlacementDate: "2026-02-14", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2023-02-14T00:00:00Z", status: getClientStatus("2026-02-14"), bucket: 1, totalPlacements: 310,   placementsThisYear: 45,   recoveryRate: 3.1  },
-  { id: "my-6",  clientId: "CLT-1006", companyName: "Vantage Properties",    headquarters: "Seattle WA",   unitCount: 5400,  firstPlacementDate: "2020-11-08", lastPlacementDate: "2022-12-15", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2020-11-08T00:00:00Z", status: getClientStatus("2022-12-15"), bucket: 2, totalPlacements: 6200,  placementsThisYear: 0,    recoveryRate: 12.8 },
-  { id: "my-7",  clientId: "CLT-1007", companyName: "Horizon Management",    headquarters: "Miami FL",     unitCount: 22000, firstPlacementDate: "2021-09-22", lastPlacementDate: "2025-09-08", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2021-09-22T00:00:00Z", status: getClientStatus("2025-09-08"), bucket: 3, totalPlacements: 8900,  placementsThisYear: 520,  recoveryRate: 18.5 },
-  { id: "my-8",  clientId: "CLT-1008", companyName: "Zenith Apartments",     headquarters: "Nashville TN", unitCount: 1200,  firstPlacementDate: "2022-04-30", lastPlacementDate: "2022-09-10", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2022-04-30T00:00:00Z", status: getClientStatus("2022-09-10"), bucket: 1, totalPlacements: 1200,  placementsThisYear: 0,    recoveryRate: 4.6  },
-  { id: "my-9",  clientId: "CLT-1009", companyName: "Catalyst Housing",      headquarters: "Dallas TX",    unitCount: 7800,  firstPlacementDate: "2021-12-05", lastPlacementDate: "2025-07-22", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2021-12-05T00:00:00Z", status: getClientStatus("2025-07-22"), bucket: 2, totalPlacements: 5600,  placementsThisYear: 275,  recoveryRate: 11.2 },
-  { id: "my-10", clientId: "CLT-1010", companyName: "Vertex Group",          headquarters: "Portland OR",  unitCount: 4250,  firstPlacementDate: "2022-07-18", lastPlacementDate: "2026-01-05", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2022-07-18T00:00:00Z", status: getClientStatus("2026-01-05"), bucket: 2, totalPlacements: 3400,  placementsThisYear: 180,  recoveryRate: 7.9  },
-  { id: "my-11", clientId: "CLT-1011", companyName: "Momentum Properties",   headquarters: "Atlanta GA",   unitCount: 29500, firstPlacementDate: "2020-05-14", lastPlacementDate: "2025-12-18", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2020-05-14T00:00:00Z", status: getClientStatus("2025-12-18"), bucket: 3, totalPlacements: 7100,  placementsThisYear: 390,  recoveryRate: 24.1 },
-  { id: "my-12", clientId: "CLT-1012", companyName: "Fusion Management",     headquarters: "Denver CO",    unitCount: 1550,  firstPlacementDate: "2023-06-08", lastPlacementDate: "2025-04-10", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2023-06-08T00:00:00Z", status: getClientStatus("2025-04-10"), bucket: 1, totalPlacements: 850,   placementsThisYear: 60,   recoveryRate: 2.3  },
-  { id: "my-13", clientId: "CLT-1013", companyName: "Keystone Apartments",   headquarters: "Austin TX",    unitCount: 6300,  firstPlacementDate: "2021-10-25", lastPlacementDate: "2025-06-28", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2021-10-25T00:00:00Z", status: getClientStatus("2025-06-28"), bucket: 2, totalPlacements: 4200,  placementsThisYear: 220,  recoveryRate: 9.7  },
-  { id: "my-14", clientId: "CLT-1014", companyName: "Luminary Housing",      headquarters: "Chicago IL",   unitCount: 3900,  firstPlacementDate: "2022-09-12", lastPlacementDate: "2026-02-25", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2022-09-12T00:00:00Z", status: getClientStatus("2026-02-25"), bucket: 1, totalPlacements: 1650,  placementsThisYear: 130,  recoveryRate: 5.8  },
-  { id: "my-15", clientId: "CLT-1015", companyName: "Sterling Group",        headquarters: "Phoenix AZ",   unitCount: 11200, firstPlacementDate: "2020-03-20", lastPlacementDate: "2025-10-14", assignedRepId: MOCK_USER.id, assignedRep: MOCK_USER, createdAt: "2020-03-20T00:00:00Z", status: getClientStatus("2025-10-14"), bucket: 3, totalPlacements: 9800,  placementsThisYear: 610,  recoveryRate: 19.4 },
-];
+
 
 export type { ClientWithBucket };
 
@@ -202,7 +185,7 @@ function getClientStatus(lastPlacementDate: string | null): ClientStatus {
   return lastPlacement >= inactiveThreshold ? "active" : "inactive";
 }
 
-export type ProspectStatus = "Verbal" | "In Communication" | "Awaiting Review" | "Pending";
+export type ProspectStatus = "Verbal" | "In Communication" | "Awaiting Review" | "Not Started" | "Closed";
 
 
 

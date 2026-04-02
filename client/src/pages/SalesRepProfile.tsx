@@ -20,7 +20,7 @@ type RepAccountRow = {
   companyName: string;
   unitCount: number;
   totalPlacements: number;
-  status: "prospecting" | "active" | "inactive";
+  status: "prospecting" | "active" | "inactive" | "onboarding";
   href: string;
 };
 
@@ -39,6 +39,7 @@ const STATUS_STYLES: Record<RepAccountRow["status"], string> = {
   prospecting: "bg-sky-100 text-sky-700 border-sky-200",
   active: "bg-emerald-100 text-emerald-700 border-emerald-200",
   inactive: "bg-slate-100 text-slate-600 border-slate-200",
+  onboarding: "bg-violet-100 text-violet-700 border-violet-200"
 };
 
 export default function SalesRepProfile() {
@@ -81,7 +82,7 @@ export default function SalesRepProfile() {
       companyName: client.companyName,
       unitCount: client.unitCount,
       totalPlacements: client.totalPlacements ?? 0,
-      status: client.status === "prospecting" ? "prospecting" : getClientStatus(client.lastPlacementDate ?? null),
+      status: client.clientStatus === "prospecting" ? "prospecting" : getClientStatus(client.lastPlacementDate ?? null),
       href: `/clients/${client.id}?from=rep/${rep.id}`,
     }));
   const visibleRows = [...clientRows]

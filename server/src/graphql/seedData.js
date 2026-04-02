@@ -247,6 +247,16 @@ const contacts = [
   }
 ];
 
+function createDefaultOnboardingChecklist() {
+  return {
+    agreement_signed: false,
+    property_list_created: false,
+    ach: false,
+    integration_setup: false,
+    first_file_placed: false
+  };
+}
+
 function toDate(value) {
   return value ? new Date(`${value}T00:00:00.000Z`) : null;
 }
@@ -286,6 +296,52 @@ function mapContact(contact) {
   };
 }
 
+function buildOnboardingChecklist(client) {
+  const shouldShowChecklist =
+    Boolean(client.clientId) &&
+    (client.prospectStatus === 'CLOSED'
+      || client.clientStatus === 'ONBOARDING'
+      || client.clientStatus === 'ACTIVE');
+
+  if (!shouldShowChecklist) {
+    return null;
+  }
+
+  const items = [
+    {
+      id: 'client-id-created',
+      label: 'Client ID assigned',
+      completed: Boolean(client.clientId)
+    },
+    {
+      id: 'primary-contact-confirmed',
+      label: 'Primary contact confirmed',
+      completed: (client.contactIds ?? []).length > 0
+    },
+    {
+      id: 'agreement-sent',
+      label: 'Service agreement sent',
+      completed: Boolean(client.onboardingChecklist?.agreement_signed)
+    },
+    {
+      id: 'kickoff-scheduled',
+      label: 'Property list created',
+      completed: Boolean(client.onboardingChecklist?.property_list_created)
+    },
+    {
+      id: 'portal-enabled',
+      label: 'ACH enabled',
+      completed: Boolean(client.onboardingChecklist?.ach)
+    }
+  ];
+
+  return {
+    items,
+    completedCount: items.filter((item) => item.completed).length,
+    totalCount: items.length
+  };
+}
+
 function mapClient(client) {
   const hasAddress = client.city && client.state;
 
@@ -317,7 +373,8 @@ function mapClient(client) {
         }
       : null,
     contactIds: client.contactIds ?? [],
-    unitCount: client.unitCount
+    unitCount: client.unitCount,
+    onboardingChecklist: buildOnboardingChecklist(client)
   };
 }
 
@@ -325,23 +382,24 @@ function buildClientRecord(input, overrides = {}) {
   const timestamp = Date.now().toString();
   const suffix = timestamp.slice(-6);
   const today = new Date().toISOString().slice(0, 10);
+  const hasOverride = (key) => Object.prototype.hasOwnProperty.call(overrides, key);
 
   return {
-    id: overrides.id ?? `client-${timestamp}`,
-    clientId: overrides.clientId ?? `CLT-${suffix}`,
+    id: hasOverride('id') ? overrides.id : `client-${timestamp}`,
+    clientId: hasOverride('clientId') ? overrides.clientId : `CLT-${suffix}`,
     companyName: input.companyName.trim(),
     assignedRepId: input.assignedRepId || null,
-    createdDate: overrides.createdDate ?? today,
-    createdClientDate: overrides.createdClientDate ?? today,
-    activeClientDate: overrides.activeClientDate ?? null,
-    archiveDate: overrides.archiveDate ?? null,
+    createdDate: hasOverride('createdDate') ? overrides.createdDate : today,
+    createdClientDate: hasOverride('createdClientDate') ? overrides.createdClientDate : today,
+    activeClientDate: hasOverride('activeClientDate') ? overrides.activeClientDate : null,
+    archiveDate: hasOverride('archiveDate') ? overrides.archiveDate : null,
     dbas: input.dbas ?? [],
     isCorporate: input.isCorporate ?? false,
-    corporateId: overrides.corporateId ?? `CORP-${suffix}`,
-    firstFilePlacementDate: overrides.firstFilePlacementDate ?? null,
-    mostRecentFilePlacementDate: overrides.mostRecentFilePlacementDate ?? null,
-    clientStatus: overrides.clientStatus ?? 'PROSPECTING',
-    prospectStatus: overrides.prospectStatus ?? null,
+    corporateId: hasOverride('corporateId') ? overrides.corporateId : `CORP-${suffix}`,
+    firstFilePlacementDate: hasOverride('firstFilePlacementDate') ? overrides.firstFilePlacementDate : null,
+    mostRecentFilePlacementDate: hasOverride('mostRecentFilePlacementDate') ? overrides.mostRecentFilePlacementDate : null,
+    clientStatus: hasOverride('clientStatus') ? overrides.clientStatus : 'PROSPECTING',
+    prospectStatus: hasOverride('prospectStatus') ? overrides.prospectStatus : null,
     website: input.website || null,
     linkedIn: input.linkedIn || null,
     address1: input.address?.address1 || null,
@@ -350,7 +408,10 @@ function buildClientRecord(input, overrides = {}) {
     state: input.address?.state || null,
     zipCode: input.address?.zipCode || null,
     contactIds: input.contactIds ?? [],
-    unitCount: input.unitCount ?? 0
+    unitCount: input.unitCount ?? 0,
+    onboardingChecklist: hasOverride('onboardingChecklist')
+      ? overrides.onboardingChecklist
+      : createDefaultOnboardingChecklist()
   };
 }
 
@@ -360,9 +421,28 @@ function toPrismaUserCreateManyInput() {
   }));
 }
 
+function buildPrismaOnboardingChecklist(client) {
+  const hasPrimaryContact = (client.contactIds ?? []).length > 0;
+  const hasFilePlaced = Boolean(client.firstFilePlacementDate);
+
+  return {
+    id: `onboarding-checklist-${client.id}`,
+    agreement_signed: false,
+    property_list_created: hasPrimaryContact,
+    ach: false,
+    integration_setup: false,
+    first_file_placed: hasFilePlaced
+  };
+}
+
+function toPrismaOnboardingChecklistCreateManyInput() {
+  return clients.map((client) => buildPrismaOnboardingChecklist(client));
+}
+
 function toPrismaClientCreateManyInput() {
   return clients.map((client) => ({
     ...client,
+    onboardingChecklistId: `onboarding-checklist-${client.id}`,
     createdDate: toDate(client.createdDate),
     createdClientDate: toDate(client.createdClientDate),
     activeClientDate: toDate(client.activeClientDate),
@@ -389,6 +469,7 @@ module.exports = {
   serializeDate,
   toPrismaClientCreateManyInput,
   toPrismaContactCreateManyInput,
+  toPrismaOnboardingChecklistCreateManyInput,
   toPrismaUserCreateManyInput,
   users
 };

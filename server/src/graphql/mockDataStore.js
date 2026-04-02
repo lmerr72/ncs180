@@ -67,13 +67,41 @@ function createMockDataStore() {
     },
 
     async createProspect(input) {
+      const isClosedProspect = input.prospectStatus === 'CLOSED';
       const record = buildClientRecord(input, {
-        clientStatus: 'PROSPECTING',
-        prospectStatus: input.prospectStatus
+        clientId: isClosedProspect ? undefined : null,
+        clientStatus: isClosedProspect ? 'ONBOARDING' : 'PROSPECTING',
+        prospectStatus: input.prospectStatus,
+        createdClientDate: isClosedProspect ? new Date().toISOString().slice(0, 10) : null,
+        activeClientDate: null
       });
 
       clients.unshift(record);
       return mapClient(record);
+    },
+
+    async updateClient(id, input) {
+      const client = clients.find((entry) => entry.id === id);
+      if (!client) {
+        throw new Error(`Client ${id} was not found.`);
+      }
+
+      if (input.clientStatus !== undefined) {
+        client.clientStatus = input.clientStatus;
+      }
+
+      if (input.prospectStatus !== undefined) {
+        client.prospectStatus = input.prospectStatus;
+
+        if (input.prospectStatus === 'CLOSED') {
+          const suffix = Date.now().toString().slice(-6);
+          client.clientId = client.clientId ?? `CLT-${suffix}`;
+          client.createdClientDate = client.createdClientDate ?? new Date().toISOString().slice(0, 10);
+          client.clientStatus = 'ONBOARDING';
+        }
+      }
+
+      return mapClient(client);
     },
 
     async createContact(clientId, input) {

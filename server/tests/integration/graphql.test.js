@@ -242,6 +242,65 @@ describe('POST /graphql', () => {
     });
   });
 
+  it('creates a client id and onboarding checklist when a prospect is closed', async () => {
+    const app = await createApp({
+      dataStore: createMockDataStore()
+    });
+
+    const response = await request(app)
+      .post('/graphql')
+      .send({
+        query: `
+          mutation CloseProspect($id: ID!, $input: UpdateClientInput!) {
+            updateClient(id: $id, input: $input) {
+              id
+              clientId
+              clientStatus
+              prospectStatus
+              onboardingChecklist {
+                completedCount
+                totalCount
+                items {
+                  id
+                  completed
+                }
+              }
+            }
+          }
+        `,
+        variables: {
+          id: 'all-4',
+          input: {
+            prospectStatus: 'CLOSED'
+          }
+        }
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.updateClient).toMatchObject({
+      id: 'all-4',
+      clientId: expect.stringMatching(/^CLT-/),
+      clientStatus: 'ONBOARDING',
+      prospectStatus: 'CLOSED',
+      onboardingChecklist: {
+        completedCount: 2,
+        totalCount: 5
+      }
+    });
+    expect(response.body.data.updateClient.onboardingChecklist.items).toEqual(
+      expect.arrayContaining([
+        {
+          id: 'client-id-created',
+          completed: true
+        },
+        {
+          id: 'primary-contact-confirmed',
+          completed: true
+        }
+      ])
+    );
+  });
+
   it('updates an existing contact', async () => {
     const app = await createApp({
       dataStore: createMockDataStore()

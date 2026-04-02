@@ -1,7 +1,7 @@
 import { gql } from "@apollo/client";
 import { useMutation, useQuery } from "@apollo/client/react";
 import { createContext, useContext, type ReactNode } from "react";
-import type { Client, UserProfile } from "@/types/api";
+import type { Client, OnboardingChecklist, UserProfile } from "@/types/api";
 import { CLIENT_EXTRA_DETAILS, type ClientExtra } from "@/lib/mock-data";
 import { useAuth } from "@/context/AuthContext";
 
@@ -54,7 +54,7 @@ type GraphqlClient = {
   corporateId?: string | null;
   firstFilePlacementDate?: string | null;
   mostRecentFilePlacementDate?: string | null;
-  clientStatus?: "ACTIVE" | "INACTIVE" | "PROSPECTING" | null;
+  clientStatus?: "ACTIVE" | "INACTIVE" | "PROSPECTING" | "ONBOARDING" | null;
   prospectStatus?: "VERBAL" | "NOT_STARTED" | "IN_COMMUNICATION" | "AWAITING_REVIEW" | "CLOSED" | null;
   website?: string | null;
   linkedIn?: string | null;
@@ -67,6 +67,7 @@ type GraphqlClient = {
   } | null;
   contactIds?: string[] | null;
   unitCount: number;
+  onboardingChecklist?: OnboardingChecklist | null;
 };
 
 type ClientsQueryData = {
@@ -131,6 +132,15 @@ const CLIENT_FIELDS = gql`
     }
     contactIds
     unitCount
+    onboardingChecklist {
+      completedCount
+      totalCount
+      items {
+        id
+        label
+        completed
+      }
+    }
   }
 `;
 
@@ -187,12 +197,14 @@ const CREATE_PROSPECT_MUTATION = gql`
 
 const ClientsContext = createContext<ClientsCtx | null>(null);
 
-function toClientStatus(status?: GraphqlClient["clientStatus"]): Client["status"] {
+function toClientStatus(status?: GraphqlClient["clientStatus"]): Client["clientStatus"] {
   switch (status) {
     case "ACTIVE":
       return "active";
     case "INACTIVE":
       return "inactive";
+    case "ONBOARDING":
+      return "onboarding";
     case "PROSPECTING":
     default:
       return "prospecting";
@@ -218,7 +230,7 @@ function toProspectStatus(status?: GraphqlClient["prospectStatus"]): Client["pro
 function normalizeClient(client: GraphqlClient): Client {
   return {
     id: client.id,
-    clientId: client.clientId ?? client.id,
+    clientId: client.clientId ?? "",
     companyName: client.companyName,
     assignedRepId: client.assignedRepId ?? "",
     createdDate: client.createdDate,
@@ -226,7 +238,7 @@ function normalizeClient(client: GraphqlClient): Client {
     clientCloseDate: client.activeClientDate ?? null,
     firstFilePlacementDate: client.firstFilePlacementDate ?? null,
     mostRecentFilePlacementDate: client.mostRecentFilePlacementDate ?? null,
-    status: toClientStatus(client.clientStatus),
+    clientStatus: toClientStatus(client.clientStatus),
     prospectStatus: toProspectStatus(client.prospectStatus),
     dbas: client.dbas ?? [],
     isCorporate: client.isCorporate ?? false,
@@ -240,7 +252,8 @@ function normalizeClient(client: GraphqlClient): Client {
       zipCode: client.address?.zipCode ?? ""
     },
     contactIds: client.contactIds ?? [],
-    unitCount: client.unitCount
+    unitCount: client.unitCount,
+    onboardingChecklist: client.onboardingChecklist ?? null
   };
 }
 

@@ -3,14 +3,13 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
-const USER = 'lmerr72';
-const PASSWORD = '';
-const HOST = 'localhost';
-const PORT = '5432';
-const DATABASE = 'ncs180';
+const url = process.env.DATABASE_URL;
 
-
-const url = `postgresql://${USER}:${PASSWORD}@${HOST}:${PORT}/${DATABASE}`
+if (!url) {
+  throw new Error(
+    "DATABASE_URL is not set. Add it to server/.env before running Prisma commands."
+  );
+}
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

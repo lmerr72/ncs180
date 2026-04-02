@@ -58,6 +58,17 @@ function createPostgresDataStore({ prisma } = {}) {
     return prisma;
   };
 
+  const buildAssignedRepCreateInput = (assignedRepId) =>
+    assignedRepId
+      ? {
+          assignedRep: {
+            connect: {
+              id: assignedRepId
+            }
+          }
+        }
+      : {};
+
   return {
     async getCurrentUser(currentUserId = DEFAULT_CURRENT_USER_ID) {
       const prismaClient = getPrismaClient();
@@ -194,10 +205,8 @@ function createPostgresDataStore({ prisma } = {}) {
       const created = await runPrismaOperation('createClient', () =>
         prismaClient.client.create({
           data: {
-            id: Math.floor(10000000 + Math.random() * 90000000).toString(),
             clientId: `CLT-${suffix}`,
             companyName: input.companyName.trim(),
-            assignedRepId: input.assignedRepId || null,
             createdDate: new Date(),
             createdClientDate: new Date(),
             activeClientDate: new Date(),
@@ -214,7 +223,14 @@ function createPostgresDataStore({ prisma } = {}) {
             state: input.address?.state || null,
             zipCode: input.address?.zipCode || null,
             contactIds: input.contactIds ?? [],
-            unitCount: input.unitCount ?? 0
+            unitCount: input.unitCount ?? 0,
+            onboardingChecklist: {
+              create: {}
+            },
+            ...buildAssignedRepCreateInput(input.assignedRepId || null)
+          },
+          include: {
+            onboardingChecklist: true
           }
         })
       );
@@ -225,18 +241,18 @@ function createPostgresDataStore({ prisma } = {}) {
     async createProspect(input) {
       const prismaClient = getPrismaClient();
       const suffix = Date.now().toString().slice(-6);
+      const isClosedProspect = input.prospectStatus === 'CLOSED';
       const created = await runPrismaOperation('createProspect', () =>
         prismaClient.client.create({
           data: {
-            clientId: `CLT-${suffix}`,
+            clientId: isClosedProspect ? `CLT-${suffix}` : null,
             companyName: input.companyName.trim(),
-            assignedRepId: input.assignedRepId || null,
             createdDate: new Date(),
-            createdClientDate: new Date(),
+            createdClientDate: isClosedProspect ? new Date() : null,
             dbas: input.dbas ?? [],
             isCorporate: input.isCorporate ?? false,
             corporateId: `CORP-${suffix}`,
-            clientStatus: 'PROSPECTING',
+            clientStatus: isClosedProspect ? 'ONBOARDING' : 'PROSPECTING',
             prospectStatus: input.prospectStatus,
             website: input.website || null,
             linkedIn: input.linkedIn || null,
@@ -246,7 +262,14 @@ function createPostgresDataStore({ prisma } = {}) {
             state: input.address?.state || null,
             zipCode: input.address?.zipCode || null,
             contactIds: input.contactIds ?? [],
-            unitCount: input.unitCount ?? 0
+            unitCount: input.unitCount ?? 0,
+            onboardingChecklist: {
+              create: {}
+            },
+            ...buildAssignedRepCreateInput(input.assignedRepId || null)
+          },
+          include: {
+            onboardingChecklist: true
           }
         })
       );
@@ -254,14 +277,39 @@ function createPostgresDataStore({ prisma } = {}) {
       return mapClient(created);
     },
 
+    async updateClient(id, input) {
+      const prismaClient = getPrismaClient();
+      const updated = await runPrismaOperation('updateClient', async () => {
+        const existing = await prismaClient.client.findUnique({
+          where: { id }
+        });
+
+        if (!existing) {
+          throw new Error(`Client ${id} was not found.`);
+        }
+
+        const closedProspect = input.prospectStatus === 'CLOSED';
+        const suffix = Date.now().toString().slice(-6);
+
+        return prismaClient.client.update({
+          where: { id },
+          data: {
+            clientStatus: closedProspect ? 'ONBOARDING' : input.clientStatus ?? undefined,
+            prospectStatus: input.prospectStatus ?? undefined,
+            clientId: closedProspect ? existing.clientId ?? `CLT-${suffix}` : undefined,
+            createdClientDate: closedProspect ? existing.createdClientDate ?? new Date() : undefined
+          }
+        });
+      });
+
+      return mapClient(updated);
+    },
+
     async createContact(clientId, input) {
       const prismaClient = getPrismaClient();
-      const suffix = Date.now().toString().slice(-8);
-      const contactId = `contact-${suffix}`;
       const created = await runPrismaOperation('createContact', async () => {
         const record = await prismaClient.contact.create({
           data: {
-            id: contactId,
             firstName: input.firstName.trim(),
             lastName: input.lastName.trim(),
             title: input.title?.trim() || null,

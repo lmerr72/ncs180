@@ -10,6 +10,7 @@ enum ClientStatus {
   ACTIVE
   INACTIVE
   PROSPECTING
+  ONBOARDING
 }
 
 enum ProspectStatus {
@@ -21,7 +22,7 @@ enum ProspectStatus {
 }
 
 model User {
-  id              String   @id
+  id              String   @id @default(cuid())
   firstName       String
   lastName        String
   email           String?  @unique
@@ -31,38 +32,50 @@ model User {
   assignedClients Client[] @relation("AssignedRep")
 }
 
+model OnboardingChecklist {
+  id                    String   @id @default(cuid())
+  agreement_signed      Boolean  @default(false)
+  property_list_created Boolean  @default(false)
+  ach                   Boolean  @default(false)
+  integration_setup     Boolean  @default(false)
+  first_file_placed     Boolean  @default(false)
+  clients               Client[]
+}
+
 model Client {
-  id                        String          @id
-  clientId                  String?         @unique
-  companyName               String
-  assignedRepId             String?
-  assignedRep               User?           @relation("AssignedRep", fields: [assignedRepId], references: [id], onDelete: SetNull)
-  createdDate               DateTime
-  createdClientDate         DateTime?
-  activeClientDate          DateTime?
-  archiveDate               DateTime?
-  dbas                      String[]
-  isCorporate               Boolean         @default(false)
-  corporateId               String
-  firstFilePlacementDate    DateTime?
+  id                          String              @id @default(cuid())
+  clientId                    String?             @unique
+  companyName                 String
+  assignedRepId               String?
+  assignedRep                 User?               @relation("AssignedRep", fields: [assignedRepId], references: [id], onDelete: SetNull)
+  createdDate                 DateTime
+  createdClientDate           DateTime?
+  activeClientDate            DateTime?
+  archiveDate                 DateTime?
+  dbas                        String[]
+  isCorporate                 Boolean             @default(false)
+  corporateId                 String
+  firstFilePlacementDate      DateTime?
   mostRecentFilePlacementDate DateTime?
-  clientStatus              ClientStatus?
-  prospectStatus            ProspectStatus?
-  website                   String?
-  linkedIn                  String?
-  address1                  String?
-  address2                  String?
-  city                      String?
-  state                     String?
-  zipCode                   String?
-  contactIds                String[]
-  unitCount                 Int             @default(0)
+  clientStatus                ClientStatus?
+  prospectStatus              ProspectStatus?
+  website                     String?
+  linkedIn                    String?
+  address1                    String?
+  address2                    String?
+  city                        String?
+  state                       String?
+  zipCode                     String?
+  contactIds                  String[]
+  onboardingChecklist         OnboardingChecklist @relation(fields: [onboardingChecklistId], references: [id])
+  unitCount                   Int                 @default(0)
+  onboardingChecklistId       String
 
   @@index([assignedRepId])
 }
 
 model Contact {
-  id        String   @id
+  id        String   @id @default(cuid())
   firstName String
   lastName  String
   title     String?
