@@ -1,7 +1,9 @@
 const {
   DEFAULT_CURRENT_USER_ID,
+  auditLogs,
   buildClientRecord,
   contacts,
+  mapAuditLog,
   mapContact,
   clients,
   mapClient,
@@ -53,6 +55,38 @@ function createMockDataStore() {
     async getContactById(id) {
       const contact = contacts.find((entry) => entry.id === id);
       return contact ? mapContact(contact) : null;
+    },
+
+    async getAuditLogEntries(clientId, startDate, endDate) {
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+
+      return auditLogs
+        .filter((entry) => {
+          if (entry.clientId !== clientId) return false;
+
+          const timestamp = new Date(entry.timestamp);
+          if (start && timestamp < start) return false;
+          if (end && timestamp > end) return false;
+          return true;
+        })
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .map(mapAuditLog);
+    },
+
+    async createAuditLogEntry(input) {
+      const entry = {
+        id: `audit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        clientId: input.clientId,
+        action: input.action.trim(),
+        author: input.author.trim(),
+        repId: input.repId,
+        timestamp: input.timestamp ?? new Date().toISOString(),
+        type: input.type
+      };
+
+      auditLogs.unshift(entry);
+      return mapAuditLog(entry);
     },
 
     async createClient(input) {

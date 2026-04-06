@@ -1,7 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClientsProvider } from "@/context/ClientsContext";
 import { TasksProvider } from "@/context/TasksContext";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import NotFound from "@/pages/not-found";
@@ -11,7 +10,7 @@ import SignIn from "@/pages/SignIn";
 import Dashboard from "@/pages/Dashboard";
 import MyClients from "@/pages/tabs/my-clients/MyClients";
 import AllClients from "@/pages/AllClients";
-import ClientProfile from "@/pages/ClientProfile";
+import ClientProfile from "@/pages/client-profile/ClientProfile";
 import CalendarPage from "@/pages/Calendar";
 import Profile from "@/pages/Profile";
 import Pipeline from "@/pages/tabs/pipeline/Pipeline";
@@ -89,16 +88,14 @@ function AppRouter() {
 function App() {
   return (
     <AuthProvider>
-      <ClientsProvider>
-        <TasksProvider>
-          <TooltipProvider>
-            <BrowserRouter>
-              <AppRouter />
-            </BrowserRouter>
-            <Toaster />
-          </TooltipProvider>
-        </TasksProvider>
-      </ClientsProvider>
+      <TasksProvider>
+        <TooltipProvider>
+          <BrowserRouter>
+            <AppRouter />
+          </BrowserRouter>
+          <Toaster />
+        </TooltipProvider>
+      </TasksProvider>
     </AuthProvider>
   );
 }

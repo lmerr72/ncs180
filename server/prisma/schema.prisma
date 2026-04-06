@@ -70,6 +70,7 @@ model Client {
   onboardingChecklist         OnboardingChecklist @relation(fields: [onboardingChecklistId], references: [id])
   unitCount                   Int                 @default(0)
   onboardingChecklistId       String
+  auditLogs                   AuditLog[]
 
   @@index([assignedRepId])
 }
@@ -84,4 +85,16 @@ model Contact {
   linkedIn  String?
   isPrimary Boolean  @default(false)
   clientIds String[]
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  clientId  String
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  action    String
+  author    String
+  timestamp DateTime @default(now())
+  type      String
+
+  @@index([clientId, timestamp])
 }

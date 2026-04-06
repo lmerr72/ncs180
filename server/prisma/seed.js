@@ -41,6 +41,7 @@ function wrapSeedError(error) {
 }
 
 async function main() {
+  await prisma.auditLog.deleteMany();
   await prisma.contact.deleteMany();
   await prisma.client.deleteMany();
   await prisma.onboardingChecklist.deleteMany();

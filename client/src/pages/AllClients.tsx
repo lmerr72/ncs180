@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Building, Building2, Filter, Search, Globe, Users, ArrowUpDown, ArrowUp, ArrowDown, Plus, X } from "lucide-react";
 import { cn, getAvatarColor } from "@/lib/utils";
-import { useClients } from "@/context/ClientsContext";
 import { AddClientWizard } from "@/components/AddClientWizard";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { MOCK_CLIENT_REPS } from "@/data/mock_client_reps";
 import {getInitials} from '@/helpers/formatters'
+import { getClients } from "@/services/clientService";
+import type { Client } from "@/types/api";
 
 type SortField = "companyName" | "unitCount" | null;
 type SortDir = "asc" | "desc";
@@ -39,7 +40,7 @@ function SortIcon({ field, activeField, dir }: { field: SortField; activeField: 
 }
 
 export default function AllClients() {
-  const { allClients } = useClients();
+  const [allClients, setAllClients] = useState<Client[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -47,6 +48,23 @@ export default function AllClients() {
   const [showAdvancedFilter, setShowAdvancedFilter] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>(DEFAULT_FILTERS);
   const [draftFilters, setDraftFilters] = useState<AdvancedFilters>(DEFAULT_FILTERS);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadClients() {
+      const clients = await getClients();
+      if (!ignore) {
+        setAllClients(clients);
+      }
+    }
+
+    void loadClients();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const displayActiveReps = 9;
   const totalUnits = allClients.reduce((sum, c) => sum + c.unitCount, 0);

@@ -270,6 +270,15 @@ function serializeDate(value) {
   return date.toISOString().slice(0, 10);
 }
 
+function serializeDateTime(value) {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  return date.toISOString();
+}
+
 function mapUser(user) {
   return {
     id: user.id,
@@ -293,52 +302,6 @@ function mapContact(contact) {
     linkedIn: contact.linkedIn,
     isPrimary: contact.isPrimary,
     clientIds: contact.clientIds ?? []
-  };
-}
-
-function buildOnboardingChecklist(client) {
-  const shouldShowChecklist =
-    Boolean(client.clientId) &&
-    (client.prospectStatus === 'CLOSED'
-      || client.clientStatus === 'ONBOARDING'
-      || client.clientStatus === 'ACTIVE');
-
-  if (!shouldShowChecklist) {
-    return null;
-  }
-
-  const items = [
-    {
-      id: 'client-id-created',
-      label: 'Client ID assigned',
-      completed: Boolean(client.clientId)
-    },
-    {
-      id: 'primary-contact-confirmed',
-      label: 'Primary contact confirmed',
-      completed: (client.contactIds ?? []).length > 0
-    },
-    {
-      id: 'agreement-sent',
-      label: 'Service agreement sent',
-      completed: Boolean(client.onboardingChecklist?.agreement_signed)
-    },
-    {
-      id: 'kickoff-scheduled',
-      label: 'Property list created',
-      completed: Boolean(client.onboardingChecklist?.property_list_created)
-    },
-    {
-      id: 'portal-enabled',
-      label: 'ACH enabled',
-      completed: Boolean(client.onboardingChecklist?.ach)
-    }
-  ];
-
-  return {
-    items,
-    completedCount: items.filter((item) => item.completed).length,
-    totalCount: items.length
   };
 }
 
@@ -374,8 +337,40 @@ function mapClient(client) {
       : null,
     contactIds: client.contactIds ?? [],
     unitCount: client.unitCount,
-    onboardingChecklist: buildOnboardingChecklist(client)
+    onboardingChecklist: buildOnboardingChecklist(client.clientStatus)
   };
+}
+
+function mapAuditLog(entry) {
+  return {
+    id: entry.id,
+    clientId: entry.clientId,
+    action: entry.action,
+    author: entry.author,
+    repId: entry.repId,
+    timestamp: serializeDateTime(entry.timestamp),
+    type: entry.type
+  };
+}
+
+function buildOnboardingChecklist(status) {
+  if (status === 'active') {
+    return    {    
+      agreement_signed: true,
+      property_list_created: true,
+      ach: true,
+      integration_setup: true,
+      first_file_placed: true
+    }
+  } else {
+    return {
+      agreement_signed: false,
+      property_list_created: false,
+      ach: false,
+      integration_setup: false,
+      first_file_placed: false
+    }
+  }
 }
 
 function buildClientRecord(input, overrides = {}) {
@@ -463,10 +458,12 @@ module.exports = {
   buildClientRecord,
   clients,
   contacts,
+  mapAuditLog,
   mapContact,
   mapClient,
   mapUser,
   serializeDate,
+  serializeDateTime,
   toPrismaClientCreateManyInput,
   toPrismaContactCreateManyInput,
   toPrismaOnboardingChecklistCreateManyInput,

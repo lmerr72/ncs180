@@ -51,6 +51,16 @@ export type Timezone  =
   | "Hawaii Time (HT)";
 export type ClientStatus = 'active' | 'inactive' | 'prospecting' | 'onboarding';
 export type ProspectStatus = 'verbal' | 'not_started' | 'in_communication' | 'awaiting_review'  | 'closed' | 'inactive';
+export type Note = { id: string; text: string; author: string; timestamp: string };
+export type AuditEntry = {
+  id: string;
+  clientId: string;
+  action: string;
+  author: string;
+  repId: string;
+  timestamp: string;
+  type: "info" | "note" | "create" | "update" | "delete";
+};
 
 export interface OnboardingChecklist {
   agreement_signed:    boolean;

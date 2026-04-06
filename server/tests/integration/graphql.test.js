@@ -95,6 +95,92 @@ describe('POST /graphql', () => {
     });
   });
 
+  it('returns audit log entries for a client and respects the date range filters', async () => {
+    const app = await createApp({
+      dataStore: createMockDataStore()
+    });
+
+    const response = await request(app)
+      .post('/graphql')
+      .send({
+        query: `
+          query AuditLogEntries($clientId: ID!, $startDate: String, $endDate: String) {
+            auditLogEntries(clientId: $clientId, startDate: $startDate, endDate: $endDate) {
+              id
+              clientId
+              action
+              author
+              repId
+              timestamp
+              type
+            }
+          }
+        `,
+        variables: {
+          clientId: 'my-1',
+          startDate: '2025-01-01T00:00:00.000Z',
+          endDate: '2025-12-31T23:59:59.999Z'
+        }
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.auditLogEntries).toEqual([
+      {
+        id: 'audit-seed-my-1-2',
+        clientId: 'my-1',
+        action: 'Primary contact updated to Jennifer Walsh',
+        author: 'Gordon Marshall',
+        repId: '',
+        timestamp: '2025-12-02T09:05:00.000Z',
+        type: 'edit'
+      }
+    ]);
+  });
+
+  it('creates an audit log entry', async () => {
+    const app = await createApp({
+      dataStore: createMockDataStore()
+    });
+
+    const response = await request(app)
+      .post('/graphql')
+      .send({
+        query: `
+          mutation CreateAuditLogEntry($input: CreateAuditLogEntryInput!) {
+            createAuditLogEntry(input: $input) {
+              id
+              clientId
+              action
+              author
+              repId
+              timestamp
+              type
+            }
+          }
+        `,
+        variables: {
+          input: {
+            clientId: 'my-1',
+            action: 'Prospect status changed',
+            author: 'Gordon Marshall',
+            repId: '',
+            type: 'edit'
+          }
+        }
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.createAuditLogEntry).toMatchObject({
+      id: expect.stringMatching(/^audit-/),
+      clientId: 'my-1',
+      action: 'Prospect status changed',
+      author: 'Gordon Marshall',
+      repId: '',
+      type: 'edit'
+    });
+    expect(response.body.data.createAuditLogEntry.timestamp).toEqual(expect.any(String));
+  });
+
   it('creates a contact with first and last names and associates it to the client', async () => {
     const app = await createApp({
       dataStore: createMockDataStore()
@@ -258,12 +344,11 @@ describe('POST /graphql', () => {
               clientStatus
               prospectStatus
               onboardingChecklist {
-                completedCount
-                totalCount
-                items {
-                  id
-                  completed
-                }
+                agreement_signed
+                property_list_created
+                ach
+                integration_setup
+                first_file_placed
               }
             }
           }
@@ -282,23 +367,14 @@ describe('POST /graphql', () => {
       clientId: expect.stringMatching(/^CLT-/),
       clientStatus: 'ONBOARDING',
       prospectStatus: 'CLOSED',
-      onboardingChecklist: {
-        completedCount: 2,
-        totalCount: 5
-      }
     });
-    expect(response.body.data.updateClient.onboardingChecklist.items).toEqual(
-      expect.arrayContaining([
-        {
-          id: 'client-id-created',
-          completed: true
-        },
-        {
-          id: 'primary-contact-confirmed',
-          completed: true
-        }
-      ])
-    );
+    expect(response.body.data.updateClient.onboardingChecklist).toEqual({
+      agreement_signed: false,
+      property_list_created: false,
+      ach: false,
+      integration_setup: false,
+      first_file_placed: false
+    });
   });
 
   it('updates an existing contact', async () => {

@@ -1,7 +1,8 @@
-const { DEFAULT_CURRENT_USER_ID, mapClient, mapContact, mapUser } = require('./seedData');
+const { DEFAULT_CURRENT_USER_ID, mapAuditLog, mapClient, mapContact, mapUser } = require('./seedData');
 
 function createPostgresDataStore({ prisma } = {}) {
   const getDatabaseUrl = () => process.env.DATABASE_URL;
+  const REQUIRED_PRISMA_DELEGATES = ['user', 'client', 'contact', 'auditLog'];
 
   const wrapPrismaError = (operation, error) => {
     if (!error) {
@@ -33,9 +34,24 @@ function createPostgresDataStore({ prisma } = {}) {
     }
   };
 
+  const assertGeneratedClientShape = (client) => {
+    const missingDelegates = REQUIRED_PRISMA_DELEGATES.filter((delegateName) => {
+      const delegate = client?.[delegateName];
+      return !delegate || typeof delegate !== 'object';
+    });
+
+    if (missingDelegates.length === 0) {
+      return client;
+    }
+
+    throw new Error(
+      `Generated Prisma client is out of sync with server/prisma/schema.prisma. Missing delegates: ${missingDelegates.join(', ')}. Run \`npm run db:generate --workspace server\` and restart the server.`
+    );
+  };
+
   const getPrismaClient = () => {
     if (prisma) {
-      return prisma;
+      return assertGeneratedClientShape(prisma);
     }
 
     const databaseUrl = getDatabaseUrl();
@@ -55,7 +71,7 @@ function createPostgresDataStore({ prisma } = {}) {
       })
     });
 
-    return prisma;
+    return assertGeneratedClientShape(prisma);
   };
 
   const buildAssignedRepCreateInput = (assignedRepId) =>
@@ -197,6 +213,50 @@ function createPostgresDataStore({ prisma } = {}) {
       );
 
       return contact ? mapContact(contact) : null;
+    },
+
+    async getAuditLogEntries(clientId, startDate, endDate) {
+      const prismaClient = getPrismaClient();
+      const where = {
+        clientId,
+        ...(startDate || endDate
+          ? {
+              timestamp: {
+                ...(startDate ? { gte: new Date(startDate) } : {}),
+                ...(endDate ? { lte: new Date(endDate) } : {})
+              }
+            }
+          : {})
+      };
+
+      const entries = await runPrismaOperation('getAuditLogEntries', () =>
+        prismaClient.auditLog.findMany({
+          where,
+          orderBy: {
+            timestamp: 'desc'
+          }
+        })
+      );
+
+      return entries.map(mapAuditLog);
+    },
+
+    async createAuditLogEntry(input) {
+      const prismaClient = getPrismaClient();
+      const created = await runPrismaOperation('createAuditLogEntry', () =>
+        prismaClient.auditLog.create({
+          data: {
+            clientId: input.clientId,
+            action: input.action.trim(),
+            author: input.author.trim(),
+            repId: input.repId,
+            timestamp: input.timestamp ? new Date(input.timestamp) : new Date(),
+            type: input.type
+          }
+        })
+      );
+
+      return mapAuditLog(created);
     },
 
     async createClient(input) {

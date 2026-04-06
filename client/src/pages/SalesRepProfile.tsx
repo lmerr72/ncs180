@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useClients } from "@/context/ClientsContext";
 import { MOCK_CLIENT_REPS } from "@/data/mock_client_reps";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -14,6 +13,9 @@ import {
 } from "@/components/ui/dialog";
 import { MapPin, Clock, Mail, ArrowLeft, ShieldCheck, Filter } from "lucide-react";
 import { cn, getAvatarColor } from "@/lib/utils";
+import type { Client, UserProfile } from "@/types/api";
+import { getClients } from "@/services/clientService";
+import { getUsersContext } from "@/services/userService";
 
 type RepAccountRow = {
   id: string;
@@ -45,11 +47,34 @@ const STATUS_STYLES: Record<RepAccountRow["status"], string> = {
 export default function SalesRepProfile() {
   const params = useParams();
   const [searchParams] = useSearchParams();
-  const { allClients, reps } = useClients();
+  const [allClients, setAllClients] = useState<Client[]>([]);
+  const [reps, setReps] = useState<UserProfile[]>([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showInactiveClients, setShowInactiveClients] = useState(false);
   const [draftShowInactiveClients, setDraftShowInactiveClients] = useState(false);
   const fromParam = searchParams.get("from");
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadData() {
+      const [clients, usersData] = await Promise.all([
+        getClients(),
+        getUsersContext(),
+      ]);
+
+      if (!ignore) {
+        setAllClients(clients);
+        setReps(usersData.users);
+      }
+    }
+
+    void loadData();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const rep = reps.find((entry) => entry.id === params.id)
     ?? MOCK_CLIENT_REPS.find((entry) => entry.id === params.id)

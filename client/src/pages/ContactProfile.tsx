@@ -1,30 +1,16 @@
-import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Building2, Mail, Phone, UserRound, StickyNote, ClipboardList, Clock, CalendarDays, PhoneCall } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { LinkedInIcon, LinkedInUpdatesCard, type LinkedInPostItem } from "@/components/shared/LinkedInUpdatesCard";
-import { useClients } from "@/context/ClientsContext";
+import OutlookEmailWidget from "@/components/shared/OutlookEmailWidget";
 import { MOCK_CONTACTS } from "@/data/mock_contacts";
 import { cn, getAvatarColor } from "@/lib/utils";
 import { getInitials } from "@/helpers/formatters";
-
-const CONTACT_QUERY = gql`
-  query Contact($id: ID!) {
-    contact(id: $id) {
-      id
-      firstName
-      lastName
-      title
-      email
-      phone
-      linkedIn
-      isPrimary
-      clientIds
-    }
-  }
-`;
+import { CONTACT_QUERY, type ContactQueryData } from "@/services/contactService";
+import { getClients } from "@/services/clientService";
+import type { Client } from "@/types/api";
 
 type LinkedInAuthStatus = {
   configured: boolean;
@@ -138,22 +124,12 @@ export default function ContactProfile() {
   const { id } = useParams();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { allClients } = useClients();
+  const [allClients, setAllClients] = useState<Client[]>([]);
   const [linkedInStatus, setLinkedInStatus] = useState<LinkedInAuthStatus | null>(null);
   const [linkedInPosts, setLinkedInPosts] = useState<LinkedInPostItem[]>([]);
   const [linkedInError, setLinkedInError] = useState<string | null>(null);
   const [loadingLinkedIn, setLoadingLinkedIn] = useState(false);
-  const { data } = useQuery<{ contact: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    title?: string | null;
-    email?: string | null;
-    phone?: string | null;
-    linkedIn?: string | null;
-    isPrimary?: boolean | null;
-    clientIds: string[];
-  } | null }>(CONTACT_QUERY, {
+  const { data } = useQuery<ContactQueryData>(CONTACT_QUERY, {
     variables: {
       id: id ?? ""
     },
@@ -197,6 +173,13 @@ export default function ContactProfile() {
     const search = params.toString();
     return `${location.pathname}${search ? `?${search}` : ""}`;
   }, [location.pathname, location.search]);
+  const outlookReturnTo = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    params.delete("outlook");
+    params.delete("outlook_error");
+    const search = params.toString();
+    return `${location.pathname}${search ? `?${search}` : ""}`;
+  }, [location.pathname, location.search]);
   const linkedInConnectUrl = `/api/linkedin/auth/start?returnTo=${encodeURIComponent(linkedInReturnTo)}`;
 
   const fromClientId = searchParams.get("fromClientId");
@@ -206,6 +189,23 @@ export default function ContactProfile() {
   const initials = getInitials(contact?.firstName ?? "",contact?.lastName ?? "");
   const avatarColor = getAvatarColor(initials);
   const linkedInCallbackError = searchParams.get("linkedin_error");
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadClients() {
+      const clients = await getClients();
+      if (!ignore) {
+        setAllClients(clients);
+      }
+    }
+
+    void loadClients();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -429,6 +429,14 @@ export default function ContactProfile() {
           actionLabel="Connect LinkedIn"
           emptyMessage="No recent LinkedIn posts are available for this company page yet."
           openLabel="Open Company Page"
+        />
+
+        <OutlookEmailWidget
+          emails={contact.email ? [contact.email] : []}
+          returnTo={outlookReturnTo}
+          title="Outlook Emails"
+          description={`Recent sent messages matched to ${displayName || "this contact"}'s email address.`}
+          emptyMessage="No recent sent Outlook emails matched this contact."
         />
 
         <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Building2, TrendingUp, Plus, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
@@ -8,7 +8,7 @@ import { Prospect,ProspectStatus } from "@/types/api";
 import { ProspectStatuses } from "@/types/constants";
 import {  formatLabel } from "@/helpers/formatters";
 import { SimpleStatCard } from "@/components/shared/SimpleStatCard";
-import { useClients } from "@/context/ClientsContext";
+import { getProspectClients } from "@/services/clientService";
 
 const STATUS_STYLES: Record<ProspectStatus, string> = {
   "not_started":          "bg-orange-100 text-orange-700 border-orange-200",
@@ -37,11 +37,36 @@ function SortIcon({ field, activeField, dir }: { field: SortField; activeField: 
 
 
 export default function Pipeline() {
-  const { prospects, loading } = useClients();
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [loading, setLoading] = useState(false);
   const [activeFilter, setActiveFilter] = useState<ProspectStatus | "All">("All");
   const [showWizard, setShowWizard] = useState(false);
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadProspects() {
+      setLoading(true);
+      try {
+        const nextProspects = await getProspectClients();
+        if (!ignore) {
+          setProspects(nextProspects);
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadProspects();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const filtered = activeFilter === "All"
     ? prospects

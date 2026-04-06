@@ -1,10 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { gql } from "@apollo/client";
-import { useMutation, useQuery } from "@apollo/client/react";
+import { useQuery } from "@apollo/client/react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { CLIENT_EXTRA_DETAILS } from "@/lib/mock-data";
 import { ProspectStatuses } from "@/types/constants";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
@@ -20,124 +18,38 @@ import {
 } from "lucide-react";
 import { DetailCard } from "@/components/shared/DetailCard";
 import { LinkedInIcon, LinkedInUpdatesCard, type LinkedInPostItem } from "@/components/shared/LinkedInUpdatesCard";
+import { createBrowserLogger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
-import type { Client, OnboardingChecklist, ProspectStatus, UserProfile } from "@/types/api";
+import type { AuditEntry, Client, Note, OnboardingChecklist, ProspectStatus, UserProfile } from "@/types/api";
 import { useTasks } from "@/context/TasksContext";
 import type { Importance, TaskCompanyOrigin } from "@/lib/mock-data";
 import { ClientStatus,TaskType } from "@/types/api";
 import { MOCK_CONTACTS } from "@/data/mock_contacts";
-import { formatLabel, getInitials } from "@/helpers/formatters";
-import { useClients } from "@/context/ClientsContext";
+import { formatApolloContactName, formatCompactNumber, formatCurrency, formatLabel, formatMonthYear, getInitials, timeAgo } from "@/helpers/formatters";
 import { useAuth } from "@/context/AuthContext";
+import { OnboardingWidget } from "./OnboardingWidget";
+import { STATUS_CONFIG } from "./constants";
+import NotesWidget from "@/components/shared/NotesWidget";
+import AuditLogWidget from "@/components/shared/AuditLogWidget";
+import { CopyableEmail } from "@/components/shared/CopyableEmail";
+import OutlookEmailWidget from "@/components/shared/OutlookEmailWidget";
+import { StatusModal } from "./StatusModal";
+import {
+  CLIENT_CONTACTS_QUERY,
+  type ClientContactsQueryData,
+  bulkCreateContacts,
+  createContact,
+  deleteContact,
+  updateContact,
+} from "@/services/contactService";
+import {
+  getClientById,
+  getClients,
+  updateClient,
+} from "@/services/clientService";
+import { getUsersContext } from "@/services/userService";
 
-const CONTACT_FIELDS = gql`
-  fragment ContactFields on Contact {
-    id
-    firstName
-    lastName
-    title
-    email
-    phone
-    linkedIn
-    isPrimary
-    clientIds
-  }
-`;
-
-const CLIENT_CONTACTS_QUERY = gql`
-  query ClientContacts($clientId: ID!) {
-    contacts(clientId: $clientId) {
-      ...ContactFields
-    }
-  }
-  ${CONTACT_FIELDS}
-`;
-
-const CREATE_CONTACT_MUTATION = gql`
-  mutation CreateContact($clientId: ID!, $input: CreateContactInput!) {
-    createContact(clientId: $clientId, input: $input) {
-      ...ContactFields
-    }
-  }
-  ${CONTACT_FIELDS}
-`;
-
-const BULK_CREATE_CONTACTS_MUTATION = gql`
-  mutation BulkCreateContacts($clientId: ID!, $inputs: [CreateContactInput!]!) {
-    bulkCreateContacts(clientId: $clientId, inputs: $inputs) {
-      ...ContactFields
-    }
-  }
-  ${CONTACT_FIELDS}
-`;
-
-const UPDATE_CONTACT_MUTATION = gql`
-  mutation UpdateContact($id: ID!, $input: UpdateContactInput!) {
-    updateContact(id: $id, input: $input) {
-      ...ContactFields
-    }
-  }
-  ${CONTACT_FIELDS}
-`;
-
-const DELETE_CONTACT_MUTATION = gql`
-  mutation DeleteContact($id: ID!) {
-    deleteContact(id: $id) {
-      ...ContactFields
-    }
-  }
-  ${CONTACT_FIELDS}
-`;
-
-const UPDATE_CLIENT_MUTATION = gql`
-  mutation UpdateClient($id: ID!, $input: UpdateClientInput!) {
-    updateClient(id: $id, input: $input) {
-      id
-      clientId
-      clientStatus
-      prospectStatus
-    }
-  }
-`;
-
-function formatMonthYear(dateStr: string | null | undefined): string {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-}
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  const hrs = Math.floor(mins / 60);
-  const days = Math.floor(hrs / 24);
-  if (days > 0) return `${days}d ago`;
-  if (hrs > 0) return `${hrs}h ago`;
-  return `${mins}m ago`;
-}
-
-function formatApolloContactName(contact: { firstName: string; lastName: string }) {
-  return `${contact.firstName} ${contact.lastName}`.trim() || contact.firstName || "Unnamed contact";
-}
-
-function formatCompactNumber(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: value >= 1000 ? 1 : 0,
-  }).format(value);
-}
-
-function formatCurrency(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    notation: value >= 1000000 ? "compact" : "standard",
-    maximumFractionDigits: value >= 1000000 ? 1 : 0,
-  }).format(value);
-}
+const logger = createBrowserLogger("ClientProfile");
 
 const bucketColors: Record<number, string> = {
   1: "bg-sky-100 text-sky-700 border border-sky-200",
@@ -148,8 +60,6 @@ const bucketColors: Record<number, string> = {
 type InactiveReason = "Moved to another company" | "Integration issues" | "Not a good fit" | "Other";
 
 type Contact = { id: string; firstName: string; lastName: string; title: string; email: string; phone: string; linkedIn: string; isPrimary?: boolean };
-type Note = { id: string; text: string; author: string; timestamp: string };
-type AuditEntry = { id: string; action: string; author: string; timestamp: string; type: "info" | "add" | "edit" | "note" };
 type HistoryEntryType = "meeting" | "email" | "call";
 type HistoryEntry = { id: string; type: HistoryEntryType; subject: string; summary: string; actor: string; timestamp: string };
 type ApolloSnapshotResponse = {
@@ -243,12 +153,6 @@ type EditableContactForm = {
   linkedIn: string;
   isPrimary: boolean;
 };
-const STATUS_CONFIG: Record<ClientStatus, { label: string; icon: React.ElementType; badge: string; dot: string; ring: string }> = {
-  active:      { label: "Active",      icon: Activity,  badge: "bg-emerald-100 text-emerald-700 border border-emerald-200", dot: "bg-emerald-500", ring: "ring-emerald-300" },
-  inactive:    { label: "Inactive",    icon: CircleOff, badge: "bg-red-100 text-red-700 border border-red-200",             dot: "bg-red-500",     ring: "ring-red-300"     },
-  prospecting: { label: "Prospecting", icon: Search,    badge: "bg-amber-100 text-amber-700 border border-amber-200",       dot: "bg-amber-500",   ring: "ring-amber-300"   },
-  onboarding: { label: "Onboarding", icon: Handshake,    badge: "bg-violet-100 text-violet-700 border border-violet-200",       dot: "bg-violet-500",   ring: "ring-violet-300"   },
-};
 
 const PROSPECT_STATUS_CONFIG: Record<Exclude<ProspectStatus, "inactive">, { badge: string; dot: string }> = {
   not_started:      { badge: "bg-slate-100 text-slate-700 border border-slate-200",           dot: "bg-slate-500" },
@@ -258,93 +162,6 @@ const PROSPECT_STATUS_CONFIG: Record<Exclude<ProspectStatus, "inactive">, { badg
   closed:           { badge: "bg-amber-100 text-amber-700 border border-amber-200",           dot: "bg-amber-500" },
 };
 const PROSPECT_STATUS_OPTIONS = ProspectStatuses as Exclude<ProspectStatus, "inactive">[];
-
-function OnboardingWidget({
-  checklist,
-  clientId,
-}: {
-  checklist: OnboardingChecklist;
-  clientId: string;
-}) {
-  const completedCount = Object.values(checklist).reduce((acc, val) => acc + (!!val ? 1 : 0), 0);
-  return (
-    <div className="bg-card rounded-2xl border border-violet-200 shadow-sm overflow-hidden">
-      <div className="px-6 py-4 border-b border-violet-100 bg-violet-50/70 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Handshake className="w-4 h-4 text-violet-600" />
-          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Onboarding</h2>
-        </div>
-        <div className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-3 py-1.5 text-xs font-semibold text-violet-700">
-          <Hash className="w-3.5 h-3.5" />
-          {clientId}
-        </div>
-      </div>
-      <div className="px-6 py-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">Complete the onboarding checklist to move this client into an active account.</p>
-          <span className="text-sm font-semibold text-foreground">
-            {completedCount}/{Object.values(checklist).length}
-          </span>
-        </div>
-        <div className="space-y-3">
-          {Object.keys(checklist).map((k) => (
-            <div
-              key={k}
-              className={cn(
-                "flex items-center gap-3 rounded-2xl border px-4 py-3",
-                checklist[k]
-                  ? "border-emerald-200 bg-emerald-50/70"
-                  : "border-border bg-muted/10"
-              )}
-            >
-              <span
-                className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-full border",
-                  checklist[k]
-                    ? "border-emerald-200 bg-emerald-100 text-emerald-700"
-                    : "border-slate-200 bg-white text-slate-400"
-                )}
-              >
-                <CheckCircle2 className="w-4 h-4" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground">{formatLabel(k)}</p>
-              </div>
-              <span
-                className={cn(
-                  "text-xs font-semibold",
-                  checklist[k] ? "text-emerald-700" : "text-muted-foreground"
-                )}
-              >
-                {checklist[k] ? "Done" : "Pending"}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const INACTIVE_REASONS: InactiveReason[] = [
-  "Moved to another company",
-  "Integration issues",
-  "Not a good fit",
-  "Other",
-];
-
-const SEED_AUDIT: AuditEntry[] = [
-  { id: "a1", action: "Client record created", author: "Tina Smith", timestamp: "2021-03-15T09:12:00Z", type: "add" },
-  { id: "a2", action: "Unit count updated from 2,800 to 3,200", author: "Tina Smith", timestamp: "2022-06-10T14:22:00Z", type: "edit" },
-  { id: "a3", action: "Assigned rep changed to Gordon Marshall", author: "Michael Scott", timestamp: "2023-01-08T10:45:00Z", type: "edit" },
-  { id: "a4", action: "Last placement date updated to Nov 2025", author: "Gordon Marshall", timestamp: "2025-11-15T11:30:00Z", type: "edit" },
-  { id: "a5", action: "Primary contact updated to Jennifer Walsh", author: "Gordon Marshall", timestamp: "2025-12-02T09:05:00Z", type: "edit" },
-];
-
-const SEED_NOTES: Note[] = [
-  { id: "n1", text: "Client prefers morning calls — best time is 9–10 AM MT. Ask for Jennifer directly.", author: "Gordon Marshall", timestamp: "2026-01-14T09:30:00Z" },
-  { id: "n2", text: "Q1 renewal discussion went well. They're looking to expand to two more properties in Q3.", author: "Gordon Marshall", timestamp: "2026-02-20T14:15:00Z" },
-];
 
 const SEED_HISTORY: HistoryEntry[] = [
   { id: "h1", type: "meeting", subject: "Quarterly business review", summary: "Reviewed placement trends and expansion plans for two new properties.", actor: "Gordon Marshall", timestamp: "2026-03-12T15:00:00Z" },
@@ -442,8 +259,17 @@ export default function ClientProfile() {
   const { id } = useParams();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { allClients, reps } = useClients();
+  const outlookReturnTo = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    params.delete("outlook");
+    params.delete("outlook_error");
+    const search = params.toString();
+    return `${location.pathname}${search ? `?${search}` : ""}`;
+  }, [location.pathname, location.search]);
   const { user } = useAuth();
+  const [allClients, setAllClients] = useState<Client[]>([]);
+  const [reps, setReps] = useState<UserProfile[]>([]);
+  const [client, setClient] = useState<Client | null>(null);
   const from = searchParams.get("from");
 
   const fromMyClients = from === "my-clients";
@@ -452,84 +278,21 @@ export default function ClientProfile() {
   const originHref = fromPipeline ? "/pipeline" : fromMyClients ? "/my-clients" : "/all-clients";
 
   const routeState = location.state as { prospect?: Client } | null;
-  const client = allClients.find(c => c.id === id) ?? routeState?.prospect ?? null; // hippo replace this with something more efficient
   const initialAssignedRep = reps.find(r => r.id === client?.assignedRepId) ?? null;
 
-  const extra = id ? CLIENT_EXTRA_DETAILS[id] : undefined;
   const { tasks, addTask, toggleTask } = useTasks();
-  const extraLinks = extra as ({ website?: string; linkedIn?: string } | undefined);
-  const companyWebsiteUrl = extraLinks?.website ?? client?.website ?? "";
-  const companyLinkedInUrl = extraLinks?.linkedIn ?? extraLinks?.linkedIn ?? client?.linkedIn ?? "";
+  const companyWebsiteUrl = client?.website ?? "";
+  const companyLinkedInUrl = client?.linkedIn ?? "";
   const linkedInPosts = getLinkedInPosts(companyLinkedInUrl);
   const myClient = allClients.find(
     (entry) => entry.id === client?.id || entry.companyName === client?.companyName
   ) ?? null;
-  const { data: contactsData } = useQuery<{ contacts: Array<{
-    id: string;
-    firstName: string;
-    lastName: string;
-    title?: string | null;
-    email?: string | null;
-    phone?: string | null;
-    linkedIn?: string | null;
-    isPrimary?: boolean | null;
-  }> }>(CLIENT_CONTACTS_QUERY, {
+  const { data: contactsData } = useQuery<ClientContactsQueryData>(CLIENT_CONTACTS_QUERY, {
     variables: {
       clientId: client?.id ?? ""
     },
     skip: !client?.id
   });
-  const [createContactMutation] = useMutation<{
-    createContact: {
-      id: string;
-      firstName: string;
-      lastName: string;
-      title?: string | null;
-      email?: string | null;
-      phone?: string | null;
-      linkedIn?: string | null;
-      isPrimary?: boolean | null;
-    };
-  }>(CREATE_CONTACT_MUTATION);
-  const [bulkCreateContactsMutation] = useMutation<{
-    bulkCreateContacts: Array<{
-      id: string;
-      firstName: string;
-      lastName: string;
-      title?: string | null;
-      email?: string | null;
-      phone?: string | null;
-      linkedIn?: string | null;
-      isPrimary?: boolean | null;
-    }>;
-  }>(BULK_CREATE_CONTACTS_MUTATION);
-  const [updateContactMutation] = useMutation<{
-    updateContact: {
-      id: string;
-      firstName: string;
-      lastName: string;
-      title?: string | null;
-      email?: string | null;
-      phone?: string | null;
-      linkedIn?: string | null;
-      isPrimary?: boolean | null;
-    };
-  }>(UPDATE_CONTACT_MUTATION);
-  const [deleteContactMutation] = useMutation<{
-    deleteContact: {
-      id: string;
-    };
-  }>(DELETE_CONTACT_MUTATION);
-  const [updateClientMutation] = useMutation<{
-    updateClient: {
-      id: string;
-      clientId?: string | null;
-      clientStatus?: "ACTIVE" | "INACTIVE" | "PROSPECTING" | "ONBOARDING" | null;
-      prospectStatus?: "VERBAL" | "NOT_STARTED" | "IN_COMMUNICATION" | "AWAITING_REVIEW" | "CLOSED" | null;
-      // onboardingChecklist?: OnboardingChecklist; hippo
-    };
-  }>(UPDATE_CLIENT_MUTATION);
-
   // Status state
   const [status, setStatus] = useState<ClientStatus>(client?.clientStatus ?? "active"); // hippo replace default with laoder when client isnt ready
   const [displayClientId, setDisplayClientId] = useState(client?.clientId ?? "");
@@ -556,6 +319,30 @@ export default function ClientProfile() {
 
   // Toast state
   const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadData() {
+      const [clients, usersData, selectedClient] = await Promise.all([
+        getClients(),
+        getUsersContext(),
+        id ? getClientById(id) : Promise.resolve(null),
+      ]);
+
+      if (ignore) return;
+
+      setAllClients(clients);
+      setReps(usersData.users);
+      setClient(selectedClient ?? routeState?.prospect ?? null);
+    }
+
+    void loadData();
+
+    return () => {
+      ignore = true;
+    };
+  }, [id, routeState?.prospect]);
 
   useEffect(() => {
     if (!showRepDropdown) return;
@@ -586,6 +373,10 @@ export default function ClientProfile() {
     setStatus(client?.clientStatus ?? "active");
   }, [client?.clientStatus]);
 
+  useEffect(() => {
+    setAssignedRep(reps.find((rep) => rep.id === client?.assignedRepId) ?? null);
+  }, [client?.assignedRepId, reps]);
+
   const isProspectView = status === "prospecting";
 
   useEffect(() => {
@@ -611,11 +402,11 @@ export default function ClientProfile() {
     setAssignedRep(rep);
     setRepPending(true);
     setShowRepDropdown(false);
-    addAudit(`Reassignment requested: ${rep.firstName} ${rep.lastName}`, "edit");
+    addAudit(`Reassignment requested: ${rep.firstName} ${rep.lastName}`, "update");
     showToast("Reassignment request sent — awaiting approval");
   }
 
-  // Contacts state — seed from CLIENT_EXTRA_DETAILS
+  // Contacts state
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [showAddContact, setShowAddContact] = useState(false);
   const [newContact, setNewContact] = useState({ firstName: "", lastName: "", title: "", email: "", phone: "", linkedIn: "" });
@@ -634,15 +425,11 @@ export default function ClientProfile() {
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null);
   const [contactPendingDelete, setContactPendingDelete] = useState<Contact | null>(null);
 
-  // Notes state
-  const [notes, setNotes] = useState<Note[]>(SEED_NOTES);
-  const [noteText, setNoteText] = useState("");
-
   // Account history state
   const [history] = useState<HistoryEntry[]>(SEED_HISTORY);
 
   // Audit log state
-  const [auditLog, setAuditLog] = useState<AuditEntry[]>(SEED_AUDIT);
+
 
   useEffect(() => {
     const backendContacts = (contactsData?.contacts ?? []).map((contact) => ({
@@ -661,22 +448,8 @@ export default function ClientProfile() {
       return;
     }
 
-    if (!extra) {
-      setContacts([]);
-      return;
-    }
-
-    setContacts([{
-      id: "primary",
-      firstName: extra.primaryContact.name.split(" ")[0] ?? "",
-      lastName: extra.primaryContact.name.split(" ").slice(1).join(" "),
-      title: extra.primaryContact.title,
-      email: extra.primaryContact.email,
-      phone: extra.primaryContact.phone,
-      linkedIn: extra.primaryContact.linkedIn,
-      isPrimary: true,
-    }]);
-  }, [contactsData, extra]);
+    setContacts([]);
+  }, [contactsData]);
 
   useEffect(() => {
     if (!client?.companyName) {
@@ -787,16 +560,6 @@ export default function ClientProfile() {
     };
   }, [client?.companyName, companyWebsiteUrl, contacts]);
 
-  function addAudit(action: string, type: AuditEntry["type"] = "info") {
-    setAuditLog(prev => [{
-      id: `a${Date.now()}`,
-      action,
-      author: `${user?.firstName ?? "Unknown"} ${user?.lastName ?? "User"}`,
-      timestamp: new Date().toISOString(),
-      type,
-    }, ...prev]);
-  }
-
   async function handleAddContact(e: React.FormEvent) {
     e.preventDefault();
     if (!newContact.firstName.trim() || !newContact.lastName.trim() || !client?.id) return;
@@ -804,25 +567,19 @@ export default function ClientProfile() {
     setContactError(null);
 
     try {
-      const response = await createContactMutation({
-        variables: {
-          clientId: client.id,
-          input: {
-            firstName: newContact.firstName.trim(),
-            lastName: newContact.lastName.trim(),
-            title: newContact.title.trim() || undefined,
-            email: newContact.email.trim() || undefined,
-            phone: newContact.phone.trim() || undefined,
-            linkedIn: newContact.linkedIn.trim() || undefined,
-            isPrimary: contacts.length === 0
-          }
-        }
-      });
-
-      const created = response.data?.createContact;
-      if (!created) {
-        throw new Error("Contact creation did not return a record.");
-      }
+      const created = await createContact(
+        client.id,
+        {
+          firstName: newContact.firstName.trim(),
+          lastName: newContact.lastName.trim(),
+          title: newContact.title.trim() || undefined,
+          email: newContact.email.trim() || undefined,
+          phone: newContact.phone.trim() || undefined,
+          linkedIn: newContact.linkedIn.trim() || undefined,
+          isPrimary: contacts.length === 0
+        },
+        user?.repId ?? "unknown-rep"
+      );
 
       const contact: Contact = {
         id: created.id,
@@ -835,7 +592,6 @@ export default function ClientProfile() {
         isPrimary: created.isPrimary ?? false
       };
       setContacts(prev => [...prev, contact]);
-      addAudit(`Added new contact: ${contact.firstName} ${contact.lastName}`, "add");
       setNewContact({ firstName: "", lastName: "", title: "", email: "", phone: "", linkedIn: "" });
       setShowAddContact(false);
       showToast("Contact added");
@@ -947,22 +703,21 @@ export default function ClientProfile() {
     setContactError(null);
 
     try {
-      const response = await bulkCreateContactsMutation({
-        variables: {
-          clientId: client.id,
-          inputs: selectedCandidates.map((candidate) => ({
-            firstName: candidate.firstName.trim(),
-            lastName: candidate.lastName.trim(),
-            title: candidate.title.trim() || undefined,
-            email: candidate.email.trim() || undefined,
-            phone: candidate.phone.trim() || undefined,
-            linkedIn: candidate.linkedIn.trim() || undefined,
-            isPrimary: false,
-          }))
-        }
-      });
+      const createdContacts = await bulkCreateContacts(
+        client.id,
+        selectedCandidates.map((candidate) => ({
+          firstName: candidate.firstName.trim(),
+          lastName: candidate.lastName.trim(),
+          title: candidate.title.trim() || undefined,
+          email: candidate.email.trim() || undefined,
+          phone: candidate.phone.trim() || undefined,
+          linkedIn: candidate.linkedIn.trim() || undefined,
+          isPrimary: false,
+        })),
+        user?.repId ?? "unknown-rep"
+      );
 
-      const nextContacts = (response.data?.bulkCreateContacts ?? []).map((created) => ({
+      const nextContacts = createdContacts.map((created) => ({
         id: created.id,
         firstName: created.firstName,
         lastName: created.lastName,
@@ -974,7 +729,6 @@ export default function ClientProfile() {
       }));
 
       setContacts((prev) => [...prev, ...nextContacts]);
-      addAudit(`Imported ${nextContacts.length} Apollo contact${nextContacts.length === 1 ? "" : "s"}`, "add");
       showToast(`Added ${nextContacts.length} selected contact${nextContacts.length === 1 ? "" : "s"} from Apollo`);
       closeApolloContactsWizard();
     } catch (error) {
@@ -1008,25 +762,20 @@ export default function ClientProfile() {
     setContactError(null);
 
     try {
-      const response = await updateContactMutation({
-        variables: {
-          id: editingContact.id,
-          input: {
-            firstName: editingContact.firstName.trim(),
-            lastName: editingContact.lastName.trim(),
-            title: editingContact.title.trim() || undefined,
-            email: editingContact.email.trim() || undefined,
-            phone: editingContact.phone.trim() || undefined,
-            linkedIn: editingContact.linkedIn.trim() || undefined,
-            isPrimary: editingContact.isPrimary,
-          }
-        }
-      });
-
-      const updated = response.data?.updateContact;
-      if (!updated) {
-        throw new Error("Contact update did not return a record.");
-      }
+      const updated = await updateContact(
+        editingContact.id,
+        {
+          firstName: editingContact.firstName.trim(),
+          lastName: editingContact.lastName.trim(),
+          title: editingContact.title.trim() || undefined,
+          email: editingContact.email.trim() || undefined,
+          phone: editingContact.phone.trim() || undefined,
+          linkedIn: editingContact.linkedIn.trim() || undefined,
+          isPrimary: editingContact.isPrimary,
+        },
+        client?.id ?? "",
+        user?.repId ?? "unknown-rep"
+      );
 
       setContacts((prev) =>
         prev.map((contact) =>
@@ -1046,7 +795,6 @@ export default function ClientProfile() {
               : contact
         )
       );
-      addAudit(`Updated contact: ${updated.firstName} ${updated.lastName}`.trim(), "edit");
       setEditingContact(null);
       showToast("Contact updated");
     } catch (error) {
@@ -1076,14 +824,9 @@ export default function ClientProfile() {
     setContactError(null);
 
     try {
-      await deleteContactMutation({
-        variables: {
-          id: contact.id
-        }
-      });
+      await deleteContact(contact.id, client?.id ?? "", user?.repId ?? "unknown-rep");
 
       setContacts((prev) => prev.filter((entry) => entry.id !== contact.id));
-      addAudit(`Deleted contact: ${contact.firstName} ${contact.lastName}`.trim(), "edit");
       showToast("Contact removed");
       setContactPendingDelete(null);
     } catch (error) {
@@ -1093,19 +836,7 @@ export default function ClientProfile() {
     }
   }
 
-  function handleAddNote(e: React.FormEvent) {
-    e.preventDefault();
-    if (!noteText.trim()) return;
-    const note: Note = {
-      id: `n${Date.now()}`,
-      text: noteText.trim(),
-      author: `${user?.firstName ?? "Unknown"} ${user?.lastName ?? "User"}`,
-      timestamp: new Date().toISOString(),
-    };
-    setNotes(prev => [note, ...prev]);
-    addAudit("Added a note", "note");
-    setNoteText("");
-  }
+
 
   function getContactDetailHref(contact: Contact): string | null {
     if (contact.id && contact.id !== 'primary') {
@@ -1137,6 +868,13 @@ export default function ClientProfile() {
   const repName = assignedRep ? `${assignedRep.firstName} ${assignedRep.lastName}` : "—";
   const hasExtended = false; // hippo replace
   const repInitials = assignedRep ? `${assignedRep.firstName[0]}${assignedRep.lastName[0]}` : "?";
+  const clientContactEmails = Array.from(
+    new Set(
+      contacts
+        .map((contact) => contact.email.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
 
   function handleStatusSave(newStatus: ClientStatus, reason?: string, notes?: string) {
     const prev = status;
@@ -1145,7 +883,6 @@ export default function ClientProfile() {
     if (newStatus === prev) return;
     let msg = `Status changed from ${prev} to ${newStatus}`;
     if (newStatus === "inactive" && reason) msg += ` — Reason: ${reason}`;
-    addAudit(msg, "edit");
     if (newStatus === "inactive" && notes) {
       const note: Note = {
         id: `n${Date.now()}`,
@@ -1153,8 +890,9 @@ export default function ClientProfile() {
         author: `${user?.firstName ?? "Unknown"} ${user?.lastName ?? "User"}`,
         timestamp: new Date().toISOString(),
       };
-      setNotes(prev => [note, ...prev]);
+      // setNotes(prev => [note, ...prev]);
     }
+    
   }
 
   async function handleProspectStatusSelect(nextStatus: Exclude<ProspectStatus, "inactive">) {
@@ -1166,45 +904,46 @@ export default function ClientProfile() {
     setProspectStatusSaving(true);
     try {
       if (nextStatus === 'closed') {
-        const response = await updateClientMutation({
-          variables: {
-            id: client.id,
-            input: {
-              prospectStatus: toProspectStatusEnum(nextStatus),
-              clientStatus: "ONBOARDING",
-              createdClientDate: new Date()
-            }
+        const response = await updateClient(
+          client.id,
+          {
+            prospectStatus: toProspectStatusEnum(nextStatus),
+            clientStatus: "ONBOARDING",
+            createdClientDate: new Date()
           },
-          refetchQueries: ["ClientsData"],
-          awaitRefetchQueries: true
-        });
-        console.info('[ClientProfile]: Updated status to onboarding');
-        setOnboardingChecklist(response.data?.updateClient.onboardingChecklist ?? null);
+          user?.repId ?? null,
+          'Prospect closed and moved to onboarding status'
+        );
+        logger.info("Updated closed prospect to onboarding", { clientId: client.id });
+        setOnboardingChecklist(response.onboardingChecklist ?? null);
         setStatus("onboarding");
       }
       else {
-        const response = await updateClientMutation({
-          variables: {
-            id: client.id,
-            input: {
-              prospectStatus: toProspectStatusEnum(nextStatus),
-            }
+        await updateClient(
+          client.id,
+          {
+            prospectStatus: toProspectStatusEnum(nextStatus),
           },
-          refetchQueries: ["ClientsData"],
-          awaitRefetchQueries: true
-        });
+          user?.repId ?? null,
+          `Prospect status changed from ${client.prospectStatus} to ${nextStatus}`
+        );
       }
       const previousStatus = prospectStatus;
       setProspectStatus(nextStatus);
-      
       setShowProspectStatusDropdown(false);
-      addAudit(`Prospect status changed from ${formatLabel(previousStatus)} to ${formatLabel(nextStatus)}`, "edit");
       showToast(`Prospect status updated to ${formatLabel(nextStatus)}`);
     } catch (error) {
-      console.error('[ClientProfile]: Failed to save prospect status', error)
+      logger.error("Failed to save prospect status", {
+        clientId: client?.id,
+        nextStatus,
+        error
+      });
       showToast(error instanceof Error ? error.message : "Unable to update prospect status.");
     } finally {
-      console.info('[ClientProfile]: Saved prospect status!')
+      logger.debug("Finished prospect status save attempt", {
+        clientId: client?.id,
+        nextStatus
+      });
       setProspectStatusSaving(false);
     }
   }
@@ -1611,11 +1350,7 @@ export default function ClientProfile() {
                         <Phone className="w-3.5 h-3.5" />{contact.phone}
                       </a>
                     )}
-                    {contact.email && (
-                      <a href={`mailto:${contact.email}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/20 text-xs font-medium text-foreground hover:text-primary hover:border-primary/30 transition-all">
-                        <Mail className="w-3.5 h-3.5" />{contact.email}
-                      </a>
-                    )}
+                    {contact.email && <CopyableEmail email={contact.email} />}
                     {contact.linkedIn && (
                       <a href={contact.linkedIn} target="_blank" rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/20 text-xs font-medium text-foreground hover:text-[#0A66C2] hover:border-[#0A66C2]/30 transition-all">
@@ -2027,264 +1762,21 @@ export default function ClientProfile() {
           openLabel="Open Company Page"
         />
 
+        <OutlookEmailWidget
+          emails={clientContactEmails}
+          returnTo={outlookReturnTo}
+          title="Outlook Emails"
+          description={`Recent sent messages matched to the ${client.companyName} contact email list.`}
+          emptyMessage="No recent sent Outlook emails matched this client's contact emails."
+        />
+
         {/* ── 6. NOTES + AUDIT LOG (side by side) ────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          {/* Notes */}
-          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center gap-2">
-              <StickyNote className="w-4 h-4 text-primary" />
-              <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Notes</h2>
-              <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">{notes.length}</span>
-            </div>
-
-            {/* Add note */}
-            <form onSubmit={handleAddNote} className="px-5 py-4 border-b border-border/50 bg-muted/10">
-              <textarea
-                value={noteText}
-                onChange={e => setNoteText(e.target.value)}
-                placeholder="Add a note about this client..."
-                rows={3}
-                className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm resize-none focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-              />
-              <div className="flex justify-end mt-2">
-                <button
-                  type="submit"
-                  disabled={!noteText.trim()}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Add Note
-                </button>
-              </div>
-            </form>
-
-            {/* Notes list */}
-            <div className="flex-1 overflow-y-auto divide-y divide-border/40 max-h-80">
-              {notes.length === 0 && (
-                <p className="px-6 py-8 text-center text-sm text-muted-foreground">No notes yet.</p>
-              )}
-              {notes.map(note => (
-                <div key={note.id} className="px-5 py-4">
-                  <p className="text-sm text-foreground leading-relaxed mb-2">{note.text}</p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <Clock className="w-3 h-3" />
-                    {note.author} · {timeAgo(note.timestamp)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Audit Log */}
-          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center gap-2">
-              <ClipboardList className="w-4 h-4 text-primary" />
-              <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Audit Log</h2>
-              <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">{auditLog.length}</span>
-            </div>
-
-            <div className="flex-1 overflow-y-auto max-h-96">
-              {auditLog.length === 0 && (
-                <p className="px-6 py-8 text-center text-sm text-muted-foreground">No activity recorded yet.</p>
-              )}
-              <div className="relative">
-                {/* Timeline line */}
-                <div className="absolute left-[2.35rem] top-0 bottom-0 w-px bg-border/60" />
-                {auditLog.map(entry => (
-                  <div key={entry.id} className="flex items-start gap-4 px-5 py-3.5 relative hover:bg-muted/20 transition-colors">
-                    <div className={cn(
-                      "w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 z-10 border-2",
-                      entry.type === "add"  && "bg-emerald-100 border-emerald-300 text-emerald-600",
-                      entry.type === "edit" && "bg-amber-100 border-amber-300 text-amber-600",
-                      entry.type === "note" && "bg-sky-100 border-sky-300 text-sky-600",
-                      entry.type === "info" && "bg-slate-100 border-slate-300 text-slate-500",
-                    )}>
-                      {entry.type === "add"  && <Plus className="w-2.5 h-2.5" />}
-                      {entry.type === "edit" && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 block" />}
-                      {entry.type === "note" && <StickyNote className="w-2.5 h-2.5" />}
-                      {entry.type === "info" && <span className="w-1.5 h-1.5 rounded-full bg-slate-400 block" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-foreground font-medium leading-snug">{entry.action}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                        <Clock className="w-3 h-3" />
-                        {entry.author} · {timeAgo(entry.timestamp)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
+          <NotesWidget />
+          <AuditLogWidget clientId={client.id} />
         </div>
       </div>
     </AppLayout>
-  );
-}
-
-
-
-// ── Status Change Modal ──────────────────────────────────────────────────────
-
-function StatusModal({
-  current,
-  onSave,
-  onClose,
-}: {
-  current: ClientStatus;
-  onSave: (status: ClientStatus, reason?: string, notes?: string) => void;
-  onClose: () => void;
-}) {
-  const [selected, setSelected] = useState<ClientStatus>(current);
-  const [reason, setReason] = useState<string>("");
-  const [notes, setNotes] = useState<string>("");
-
-  const needsInactiveFields = selected === "inactive";
-  const isValid = selected !== "inactive" || (reason.trim() !== "" && notes.trim() !== "");
-
-  function handleSave() {
-    if (!isValid) return;
-    onSave(selected, reason || undefined, notes || undefined);
-  }
-
-  return createPortal(
-    <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 px-4" onClick={onClose}>
-      <div
-        className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Modal header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border/50">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">Change Client Status</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Current: <span className={cn("font-semibold", STATUS_CONFIG[current].badge.split(" ")[1])}>{formatLabel(current)}</span>
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="px-6 py-5 space-y-5">
-          {/* Status radio options */}
-          <div className="space-y-2.5">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select Status</p>
-            {(["active", "onboarding", "prospecting", "inactive"] as ClientStatus[]).map(s => {
-              const cfg = STATUS_CONFIG[s];
-              const Icon = cfg.icon;
-              const isChosen = selected === s;
-              return (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => { setSelected(s); if (s !== "inactive") { setReason(""); setNotes(""); } }}
-                  className={cn(
-                    "w-full flex items-center gap-3.5 px-4 py-3.5 rounded-xl border-2 text-left transition-all",
-                    isChosen
-                      ? cn("border-primary bg-primary/5", cfg.badge.replace(/bg-\S+/, "").replace(/text-\S+/, "").replace(/border\s\S+/, "").trim())
-                      : "border-border bg-muted/10 hover:border-border/80 hover:bg-muted/20"
-                  )}
-                >
-                  {/* Radio dot */}
-                  <div className={cn(
-                    "w-4.5 h-4.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all",
-                    isChosen ? "border-primary bg-primary" : "border-muted-foreground/40 bg-background"
-                  )}>
-                    {isChosen && <span className="w-1.5 h-1.5 rounded-full bg-white block" />}
-                  </div>
-
-                  <div className={cn(
-                    "w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0",
-                    cfg.badge.split(" ").slice(0, 1).join(" "), // bg only
-                  )}>
-                    <Icon className={cn("w-4 h-4", cfg.badge.split(" ").slice(1, 2).join(" "))} />
-                  </div>
-
-                  <div className="flex-1">
-                    <p className={cn("font-semibold text-sm", isChosen ? "text-foreground" : "text-foreground")}>{formatLabel(s)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {s === "active" && "Client is actively engaged and placing"}
-                      {s === "prospecting" && "Client is in early-stage outreach"}
-                      {s === "onboarding" && "Client is in the process of onboarding"}
-                      {s === "inactive" && "Client has stopped activity — requires reason"}
-                    </p>
-                  </div>
-
-                  {isChosen && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Inactive required fields */}
-          {needsInactiveFields && (
-            <div className="rounded-xl border border-red-200 bg-red-50/60 p-4 space-y-3">
-              <p className="text-xs font-bold text-red-700 uppercase tracking-wider flex items-center gap-1.5">
-                <CircleOff className="w-3.5 h-3.5" /> Inactivation Details Required
-              </p>
-
-              {/* Reason dropdown */}
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-                  Reason <span className="text-destructive">*</span>
-                </label>
-                <select
-                  value={reason}
-                  onChange={e => setReason(e.target.value)}
-                  className={cn(
-                    "w-full px-3.5 py-2.5 rounded-xl border-2 bg-background text-sm cursor-pointer focus:outline-none focus:ring-4 transition-all",
-                    reason ? "border-border focus:border-primary focus:ring-primary/10" : "border-red-300 focus:border-red-400 focus:ring-red-100"
-                  )}
-                >
-                  <option value="">Select a reason...</option>
-                  {INACTIVE_REASONS.map(r => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Notes textarea */}
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-                  Notes <span className="text-destructive">*</span>
-                </label>
-                <textarea
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="Provide context for this status change..."
-                  rows={3}
-                  className={cn(
-                    "w-full px-3.5 py-2.5 rounded-xl border-2 bg-background text-sm resize-none focus:outline-none focus:ring-4 transition-all",
-                    notes.trim() ? "border-border focus:border-primary focus:ring-primary/10" : "border-red-300 focus:border-red-400 focus:ring-red-100"
-                  )}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-border/50 bg-muted/10">
-          <button onClick={onClose} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!isValid || selected === current}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          >
-            <Check className="w-4 h-4" />
-            Save Status
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
   );
 }
 

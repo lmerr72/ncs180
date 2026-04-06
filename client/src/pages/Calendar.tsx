@@ -11,7 +11,9 @@ import {
   addWeeks, subWeeks, addDays, subDays, parseISO,
 } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useClients } from "@/context/ClientsContext";
+import { useEffect } from "react";
+import { getClients } from "@/services/clientService";
+import type { Client } from "@/types/api";
 
 /* ─── Timezone helpers ─── */
 function getTimezoneAbbr(): string {
@@ -149,7 +151,7 @@ const TODAY = new Date(2026, 2, 17); // March 17, 2026
 
 /* ═══════════════════════════════════════════════════════════ */
 export default function CalendarPage() {
-  const { allClients } = useClients();
+  const [allClients, setAllClients] = useState<Client[]>([]);
   const [view, setView]                 = useState<"month" | "week" | "day">("month");
   const [currentDate, setCurrentDate]   = useState(TODAY);
   const [entries, setEntries]           = useState<CalendarEntry[]>(SEED);
@@ -163,6 +165,23 @@ export default function CalendarPage() {
   });
 
   const tzAbbr = getTimezoneAbbr();
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadClients() {
+      const clients = await getClients();
+      if (!ignore) {
+        setAllClients(clients);
+      }
+    }
+
+    void loadClients();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const prev = () => {
     if (view === "month") setCurrentDate(d => subMonths(d, 1));

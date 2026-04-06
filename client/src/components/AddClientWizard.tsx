@@ -5,10 +5,12 @@ import { cn } from "@/lib/utils";
 import {
   MOCK_USER, STATE_TERRITORIES, REP_KEY_TO_ID, REP_DETAILS, type ProspectStatus,
 } from "@/lib/mock-data";
-import { useClients } from "@/context/ClientsContext";
 import { US_STATES } from "@/types/constants";
-import { MOCK_CLIENTS } from "@/data/mock_clients";
 import { getInitials } from "@/helpers/formatters";
+import { useAuth } from "@/context/AuthContext";
+import { createClient, createProspect, getClients } from "@/services/clientService";
+import { getUsersContext } from "@/services/userService";
+import type { Client, UserProfile } from "@/types/api";
 
 export interface SeedResult {
   website: string | null;
@@ -275,24 +277,26 @@ export function SeedInsightCard({ seed }: { seed: SeedResult | null }) {
 
 function toProspectStatusValue(
   status: ProspectStatus
-): "verbal" | "in_communication" | "awaiting_review" | "closed" | "not_started" {
+): "VERBAL" | "IN_COMMUNICATION" | "AWAITING_REVIEW" | "CLOSED" | "NOT_STARTED" {
   switch (status) {
     case "Verbal":
-      return "verbal";
+      return "VERBAL";
     case "In Communication":
-      return "in_communication";
+      return "IN_COMMUNICATION";
     case "Awaiting Review":
-      return "awaiting_review";
+      return "AWAITING_REVIEW";
     case "Closed":
-      return "closed";
+      return "CLOSED";
     case "Not Started":
     default:
-      return "not_started";
+      return "NOT_STARTED";
   }
 }
 
 function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
-  const { addClient, addProspect, allClients, reps, currentUser } = useClients();
+  const { user: currentUser } = useAuth();
+  const [allClients, setAllClients] = useState<Client[]>([]);
+  const [reps, setReps] = useState<UserProfile[]>([]);
   const [step, setStep] = useState<Step>(1);
   const [form, setForm] = useState<FormData>(EMPTY);
   const [submitted, setSubmitted] = useState(false);
@@ -309,7 +313,29 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
   const icon = isClientMode
     ? <Building2 className="w-4 h-4 text-primary" />
     : <TrendingUp className="w-4 h-4 text-primary" />;
-  const defaultProspectRepId = currentUser?.id ?? MOCK_USER.id;
+  const defaultProspectRepId = currentUser?.repId ?? MOCK_USER.id;
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadData() {
+      const [clients, usersData] = await Promise.all([
+        getClients(),
+        getUsersContext(),
+      ]);
+
+      if (!ignore) {
+        setAllClients(clients);
+        setReps(usersData.users);
+      }
+    }
+
+    void loadData();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isClientMode && !form.assignedRepId) {
@@ -363,9 +389,7 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
   const repKey = STATE_TERRITORIES[form.state];
   const isOpenTerritory = !form.state || repKey === "open" || !repKey;
   const autoRepId = repKey && repKey !== "open" ? REP_KEY_TO_ID[repKey] : null;
-  const companyNames = allClients.length > 0
-    ? allClients.map((client) => client.companyName)
-    : MOCK_CLIENTS.map((client) => client.companyName);
+  const companyNames = allClients.map((client) => client.companyName);
   const isUnassignedSelection = form.assignedRepId === UNASSIGNED_REP_ID;
   const selectedRep = reps.find((rep) => rep.id === form.assignedRepId) ?? null;
   const step1Valid = Boolean(form.companyName.trim() && form.city.trim() && form.state);
@@ -382,28 +406,36 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
 
     try {
       if (isClientMode) {
-        await addClient({
+        await createClient({
           companyName: form.companyName.trim(),
           dbas: form.dbas.split(",").map((value) => value.trim()).filter(Boolean),
-          website: form.website.trim(),
-          linkedIn: form.linkedIn.trim(),
-          city: form.city.trim(),
-          state: form.state,
+          website: form.website.trim() || undefined,
+          linkedIn: form.linkedIn.trim() || undefined,
+          isCorporate: false,
+          address: {
+            city: form.city.trim(),
+            state: form.state,
+          },
           unitCount: parseInt(form.unitCount, 10) || 0,
-          assignedRepId: isUnassignedSelection ? "" : (selectedRep?.id ?? ""),
-        });
+          contactIds: [],
+          assignedRepId: isUnassignedSelection ? undefined : (selectedRep?.id ?? undefined),
+        }, currentUser?.repId ?? MOCK_USER.id);
       } else {
-        await addProspect({
+        await createProspect({
           companyName: form.companyName.trim(),
           dbas: form.dbas.split(",").map((value) => value.trim()).filter(Boolean),
-          website: form.website.trim(),
-          linkedIn: form.linkedIn.trim(),
-          city: form.city.trim(),
-          state: form.state,
+          website: form.website.trim() || undefined,
+          linkedIn: form.linkedIn.trim() || undefined,
+          isCorporate: false,
+          address: {
+            city: form.city.trim(),
+            state: form.state,
+          },
           unitCount: parseInt(form.unitCount, 10) || 0,
-          assignedRepId: currentUser?.id ?? MOCK_USER.id,
+          contactIds: [],
+          assignedRepId: currentUser?.repId ?? MOCK_USER.id,
           prospectStatus: toProspectStatusValue(form.prospectStatus),
-        });
+        }, currentUser?.repId ?? MOCK_USER.id);
       }
 
       setSubmitted(true);
@@ -430,7 +462,7 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
             <span className="font-semibold text-foreground">{form.companyName}</span>
             {isClientMode ? " has been added to All Clients." : " has been added to your Pipeline."}
           </p>
-          {isClientMode && selectedRep?.id === (currentUser?.id ?? MOCK_USER.id) && (
+          {isClientMode && selectedRep?.id === (currentUser?.repId ?? MOCK_USER.id) && (
             <p className="text-xs text-emerald-600 font-medium mb-6">Also visible in your My Clients page.</p>
           )}
           {!isClientMode && (
@@ -439,7 +471,7 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
               {form.prospectStatus}
             </div>
           )}
-          {isClientMode && selectedRep?.id !== (currentUser?.id ?? MOCK_USER.id) && <div className="mb-6" />}
+          {isClientMode && selectedRep?.id !== (currentUser?.repId ?? MOCK_USER.id) && <div className="mb-6" />}
           <button
             onClick={onClose}
             className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
@@ -709,7 +741,7 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
                   {REP_DETAILS[selectedRep.id]?.title ?? "Sales Representative"}
                   {REP_DETAILS[selectedRep.id]?.location ? ` · ${REP_DETAILS[selectedRep.id].location}` : ""}
                 </p>
-                {selectedRep.id === (currentUser?.id ?? MOCK_USER.id) && (
+                {selectedRep.id === (currentUser?.repId ?? MOCK_USER.id) && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold border border-primary/20 mt-0.5 inline-block">You</span>
                 )}
               </div>

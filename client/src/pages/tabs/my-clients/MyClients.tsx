@@ -6,8 +6,9 @@ import { cn } from "@/lib/utils";
 import { DetailCard } from "@/components/shared/DetailCard";
 import { Client, UserProfile } from "@/types/api";
 import { daysFromToday } from "@/helpers/formatters";
-import { useClients } from "@/context/ClientsContext";
 import { MOCK_CLIENT_REPS } from "@/data/mock_client_reps";
+import { useAuth } from "@/context/AuthContext";
+import { getClients, getRepClients } from "@/services/clientService";
 
 type SortField = "companyName" | "unitCount" | "totalPlacements" | "placementsThisYear" | null;
 type SortDir = "asc" | "desc";
@@ -91,8 +92,10 @@ function formatCompactNumber(value: number | null | undefined): string {
 }
 
 export default function MyClients() {
-  const { myClients: assignedClients, allClients, currentUser, loading } = useClients();
-  const myClients = assignedClients.filter((client) => client.clientStatus === "active" || client.clientStatus === "onboarding");
+  const { user: currentUser } = useAuth();
+  const [allClients, setAllClients] = useState<Client[]>([]);
+  const [myClients, setMyClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -100,6 +103,45 @@ export default function MyClients() {
   const [territoryLoading, setTerritoryLoading] = useState(false);
   const [territoryError, setTerritoryError] = useState<string | null>(null);
   const [territoryRefreshKey, setTerritoryRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadClients() {
+      if (!currentUser?.repId) {
+        if (!ignore) {
+          setAllClients([]);
+          setMyClients([]);
+          setLoading(false);
+        }
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        const [clients, repClients] = await Promise.all([
+          getClients(),
+          getRepClients(currentUser.repId),
+        ]);
+
+        if (ignore) return;
+
+        setAllClients(clients);
+        setMyClients(repClients.filter((client) => client.clientStatus === "active" || client.clientStatus === "onboarding"));
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadClients();
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentUser?.repId]);
 
   const territoryStates = resolveTerritoryStates(currentUser, myClients);
   const territoryKey = territoryStates.join("|");

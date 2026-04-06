@@ -7,6 +7,7 @@ const typeDefs = `
     prospects: [Client!]!
     myClients: [Client!]!
     client(id: ID!): Client
+    auditLogEntries(clientId: ID!, startDate: String, endDate: String): [AuditLogEntry!]!
     contacts(clientId: ID!): [Contact!]!
     contact(id: ID!): Contact
   }
@@ -15,6 +16,7 @@ const typeDefs = `
     createClient(input: CreateClientInput!): Client!
     createProspect(input: CreateProspectInput!): Client!
     updateClient(id: ID!, input: UpdateClientInput!): Client!
+    createAuditLogEntry(input: CreateAuditLogEntryInput!): AuditLogEntry!
     createContact(clientId: ID!, input: CreateContactInput!): Contact!
     bulkCreateContacts(clientId: ID!, inputs: [CreateContactInput!]!): [Contact!]!
     updateContact(id: ID!, input: UpdateContactInput!): Contact!
@@ -48,16 +50,14 @@ const typeDefs = `
     clientIds: [String!]!
   }
 
-  type OnboardingChecklistItem {
+  type AuditLogEntry {
     id: ID!
-    label: String!
-    completed: Boolean!
-  }
-
-  type OnboardingChecklist {
-    items: [OnboardingChecklistItem!]!
-    completedCount: Int!
-    totalCount: Int!
+    clientId: ID!
+    action: String!
+    author: String!
+    repId: String!
+    timestamp: String!
+    type: String!
   }
 
   enum ClientStatus {
@@ -142,10 +142,27 @@ const typeDefs = `
     isPrimary: Boolean
   }
 
+  input CreateAuditLogEntryInput {
+    clientId: ID!
+    action: String!
+    author: String!
+    repId: String!
+    timestamp: String
+    type: String!
+  }
+
   type File {
     clientId: ID!
     uploadDate: String!
     workingDate: String
+  }
+
+  type OnboardingChecklist {
+    agreement_signed: Boolean!
+    property_list_created: Boolean!
+    ach: Boolean!
+    integration_setup: Boolean!
+    first_file_placed: Boolean!
   }
 
   type Client {
@@ -188,6 +205,8 @@ const resolvers = {
     myClients: async (_parent, _args, { dataStore, currentUserId }) =>
       dataStore.getMyClients(currentUserId),
     client: async (_parent, { id }, { dataStore }) => dataStore.getClientById(id),
+    auditLogEntries: async (_parent, { clientId, startDate, endDate }, { dataStore }) =>
+      dataStore.getAuditLogEntries(clientId, startDate, endDate),
     contacts: async (_parent, { clientId }, { dataStore }) =>
       dataStore.getContactsByClientId(clientId),
     contact: async (_parent, { id }, { dataStore }) => dataStore.getContactById(id)
@@ -198,6 +217,8 @@ const resolvers = {
       dataStore.createProspect(input),
     updateClient: async (_parent, { id, input }, { dataStore }) =>
       dataStore.updateClient(id, input),
+    createAuditLogEntry: async (_parent, { input }, { dataStore }) =>
+      dataStore.createAuditLogEntry(input),
     createContact: async (_parent, { clientId, input }, { dataStore }) =>
       dataStore.createContact(clientId, input),
     bulkCreateContacts: async (_parent, { clientId, inputs }, { dataStore }) =>

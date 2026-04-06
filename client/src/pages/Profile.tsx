@@ -1,12 +1,22 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAuth } from "@/context/AuthContext";
 import type { Timezone } from "@/types/api";
 import { Camera, Save, KeyRound, User as UserIcon, ShieldCheck, MapPin, Clock } from "lucide-react";
+import OutlookSettingsWidget from "@/components/shared/OutlookSettingsWidget";
 
 export default function Profile() {
   const { user } = useAuth();
+  const location = useLocation();
   const initials = user ? `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}` : "NA";
+  const outlookReturnTo = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    params.delete("outlook");
+    params.delete("outlook_error");
+    const search = params.toString();
+    return `${location.pathname}${search ? `?${search}` : ""}`;
+  }, [location.pathname, location.search]);
   const [profile, setProfile] = useState<{
     firstName: string;
     lastName: string;
@@ -76,6 +86,7 @@ export default function Profile() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-4 md:px-0">
+          <OutlookSettingsWidget returnTo={outlookReturnTo} />
           
           {/* Profile Form */}
           <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden hover-elevate">

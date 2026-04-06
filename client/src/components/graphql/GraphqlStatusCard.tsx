@@ -1,34 +1,6 @@
-import { gql } from "@apollo/client";
 import { useQuery } from "@apollo/client/react";
 import { AlertCircle, CheckCircle2, LoaderCircle } from "lucide-react";
-
-const INITIAL_GRAPHQL_QUERY = gql`
-  query InitialGraphqlSetup {
-    health {
-      status
-      service
-    }
-    currentUser {
-      firstName
-    }
-    myClients {
-      id
-    }
-  }
-`;
-
-type InitialGraphqlSetupData = {
-  health: {
-    status: string;
-    service: string;
-  };
-  currentUser: {
-    firstName: string;
-  };
-  myClients: Array<{
-    id: string;
-  }>;
-};
+import { INITIAL_GRAPHQL_QUERY, type InitialGraphqlSetupData } from "@/services/graphqlStatusService";
 
 export function GraphqlStatusCard() {
   const { data, loading, error } = useQuery<InitialGraphqlSetupData>(INITIAL_GRAPHQL_QUERY);
