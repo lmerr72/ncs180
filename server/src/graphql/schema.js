@@ -7,6 +7,7 @@ const typeDefs = `
     prospects: [Client!]!
     myClients: [Client!]!
     client(id: ID!): Client
+    tasks(repId: ID!, clientId: ID): [Task!]!
     auditLogEntries(clientId: ID!, startDate: String, endDate: String): [AuditLogEntry!]!
     contacts(clientId: ID!): [Contact!]!
     contact(id: ID!): Contact
@@ -16,6 +17,9 @@ const typeDefs = `
     createClient(input: CreateClientInput!): Client!
     createProspect(input: CreateProspectInput!): Client!
     updateClient(id: ID!, input: UpdateClientInput!): Client!
+    createTask(input: CreateTaskInput!): Task!
+    updateTask(id: ID!, input: UpdateTaskInput!): Task!
+    deleteTask(id: ID!): Task!
     createAuditLogEntry(input: CreateAuditLogEntryInput!): AuditLogEntry!
     createContact(clientId: ID!, input: CreateContactInput!): Contact!
     bulkCreateContacts(clientId: ID!, inputs: [CreateContactInput!]!): [Contact!]!
@@ -58,6 +62,38 @@ const typeDefs = `
     repId: String!
     timestamp: String!
     type: String!
+  }
+
+  enum TaskType {
+    PROSPECTING
+    FOLLOW_UP
+    TRAINING
+    OTHER
+  }
+
+  enum Importance {
+    LOW
+    MEDIUM
+    HIGH
+  }
+
+  enum TaskCommType {
+    EMAIL
+    PHONE
+  }
+
+  type Task {
+    id: ID!
+    clientId: ID
+    repId: ID!
+    title: String!
+    description: String!
+    taskType: TaskType!
+    importance: Importance!
+    dueDate: String!
+    completed: Boolean!
+    commType: TaskCommType
+    client: Client
   }
 
   enum ClientStatus {
@@ -126,10 +162,33 @@ const typeDefs = `
     isPrimary: Boolean
   }
 
+  input CreateTaskInput {
+    repId: ID!
+    clientId: ID
+    title: String!
+    description: String!
+    taskType: TaskType!
+    importance: Importance!
+    dueDate: String!
+    completed: Boolean
+    commType: TaskCommType
+  }
+
   input UpdateClientInput {
     clientStatus: ClientStatus
     prospectStatus: ProspectStatus
     createdClientDate: String
+  }
+
+  input UpdateTaskInput {
+    clientId: ID
+    title: String
+    description: String
+    taskType: TaskType
+    importance: Importance
+    dueDate: String
+    completed: Boolean
+    commType: TaskCommType
   }
 
   input UpdateContactInput {
@@ -205,6 +264,8 @@ const resolvers = {
     myClients: async (_parent, _args, { dataStore, currentUserId }) =>
       dataStore.getMyClients(currentUserId),
     client: async (_parent, { id }, { dataStore }) => dataStore.getClientById(id),
+    tasks: async (_parent, { repId, clientId }, { dataStore }) =>
+      dataStore.getTasks(repId, clientId),
     auditLogEntries: async (_parent, { clientId, startDate, endDate }, { dataStore }) =>
       dataStore.getAuditLogEntries(clientId, startDate, endDate),
     contacts: async (_parent, { clientId }, { dataStore }) =>
@@ -217,6 +278,9 @@ const resolvers = {
       dataStore.createProspect(input),
     updateClient: async (_parent, { id, input }, { dataStore }) =>
       dataStore.updateClient(id, input),
+    createTask: async (_parent, { input }, { dataStore }) => dataStore.createTask(input),
+    updateTask: async (_parent, { id, input }, { dataStore }) => dataStore.updateTask(id, input),
+    deleteTask: async (_parent, { id }, { dataStore }) => dataStore.deleteTask(id),
     createAuditLogEntry: async (_parent, { input }, { dataStore }) =>
       dataStore.createAuditLogEntry(input),
     createContact: async (_parent, { clientId, input }, { dataStore }) =>

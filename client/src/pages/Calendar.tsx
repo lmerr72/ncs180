@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { getClients } from "@/services/clientService";
+import CustomSelect from "@/components/shared/CustomSelect";
 import type { Client } from "@/types/api";
 
 /* ─── Timezone helpers ─── */
@@ -681,14 +682,16 @@ export default function CalendarPage() {
                 <>
                   <div>
                     <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 block">Company</label>
-                    <select value={form.company}
-                      onChange={e => setForm(f => ({ ...f, company: e.target.value }))}
-                      className="w-full px-4 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary transition-all">
-                      <option value="">Select a company…</option>
-                      {allClients.map(c => (
-                        <option key={c.id} value={c.companyName}>{c.companyName}</option>
-                      ))}
-                    </select>
+                    <CustomSelect
+                      value={form.company}
+                      onChange={value => setForm(f => ({ ...f, company: value }))}
+                      placeholder="Select a company..."
+                      options={allClients.map((client) => ({
+                        value: client.companyName,
+                        label: client.companyName,
+                      }))}
+                      className="px-4"
+                    />
                   </div>
 
                   <div>

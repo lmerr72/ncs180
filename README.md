@@ -97,6 +97,45 @@ npm run db:seed --workspace server
 
 Only use `--force-reset` for local/dev data you are OK losing.
 
+## Adding A New Table
+
+When you add a brand-new database table in this project, update both the database schema and the GraphQL server shape in the same pass:
+
+1. Add the Prisma model and relations in [server/prisma/schema.prisma](/Users/lmerr72/Development/ncs180/server/prisma/schema.prisma).
+2. Add a new SQL migration file under [server/prisma/migrations](/Users/lmerr72/Development/ncs180/server/prisma/migrations) for the table, indexes, foreign keys, and any constraints Prisma does not express directly the way you want.
+3. Regenerate Prisma Client.
+
+```sh
+npm run db:generate --workspace server
+```
+
+4. If the new table should be cleared during reseeds, update [server/prisma/seed.js](/Users/lmerr72/Development/ncs180/server/prisma/seed.js).
+5. If the table needs starter records or mapping helpers, update [server/src/graphql/seedData.js](/Users/lmerr72/Development/ncs180/server/src/graphql/seedData.js).
+6. Add or update GraphQL types, queries, and mutations in [server/src/graphql/schema.js](/Users/lmerr72/Development/ncs180/server/src/graphql/schema.js).
+7. Update datastore behavior in [server/src/graphql/postgresDataStore.js](/Users/lmerr72/Development/ncs180/server/src/graphql/postgresDataStore.js) and [server/src/graphql/mockDataStore.js](/Users/lmerr72/Development/ncs180/server/src/graphql/mockDataStore.js) if the new table is read or written through the API.
+8. Update tests that cover the new schema behavior, especially [server/tests/integration/graphql.test.js](/Users/lmerr72/Development/ncs180/server/tests/integration/graphql.test.js).
+
+To apply the new table locally:
+
+```sh
+npm run db:generate --workspace server
+psql "$DATABASE_URL" -f server/prisma/migrations/<timestamp>_<migration_name>/migration.sql
+```
+
+To inspect the table later and confirm its columns:
+
+```sh
+psql "$DATABASE_URL" -c '\d "Files"'
+```
+
+If Prisma can safely reconcile the whole schema, you can use:
+
+```sh
+npm run db:push --workspace server
+```
+
+Use the direct `psql` migration route when `db:push` is blocked by unrelated local schema drift and you only need to add the new table.
+
 ## Prisma Drift Troubleshooting
 
 If Prisma throws an error that mentions a field your schema no longer has, or says an argument is missing even though the code looks correct, the generated Prisma client is probably stale.

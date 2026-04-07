@@ -4,8 +4,8 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Building, Building2, Filter, Search, Globe, Users, ArrowUpDown, ArrowUp, ArrowDown, Plus, X } from "lucide-react";
 import { cn, getAvatarColor } from "@/lib/utils";
 import { AddClientWizard } from "@/components/AddClientWizard";
+import CustomSelect from "@/components/shared/CustomSelect";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { MOCK_CLIENT_REPS } from "@/data/mock_client_reps";
 import {getInitials} from '@/helpers/formatters'
@@ -166,42 +166,36 @@ export default function AllClients() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-foreground">Sales Rep</label>
-                <Select
+                <CustomSelect
                   value={draftFilters.repId}
-                  onValueChange={(value) => setDraftFilters((current) => ({ ...current, repId: value }))}
-                >
-                  <SelectTrigger className="h-11 rounded-xl border-border bg-card">
-                    <SelectValue placeholder="All sales reps" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All sales reps</SelectItem>
-                    {MOCK_CLIENT_REPS.map((rep) => (
-                      <SelectItem key={rep.id} value={rep.id}>
-                        {rep.firstName} {rep.lastName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(value) => setDraftFilters((current) => ({ ...current, repId: value }))}
+                  options={[
+                    { value: "all", label: "All sales reps" },
+                    ...MOCK_CLIENT_REPS.map((rep) => ({
+                      value: rep.id,
+                      label: `${rep.firstName} ${rep.lastName}`,
+                    })),
+                  ]}
+                  placeholder="All sales reps"
+                  className="bg-card"
+                />
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-foreground">State Of Operation</label>
-                <Select
+                <CustomSelect
                   value={draftFilters.state}
-                  onValueChange={(value) => setDraftFilters((current) => ({ ...current, state: value }))}
-                >
-                  <SelectTrigger className="h-11 rounded-xl border-border bg-card">
-                    <SelectValue placeholder="All states" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All states</SelectItem>
-                    {stateOptions.map((state) => (
-                      <SelectItem key={state} value={state}>
-                        {state}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  onChange={(value) => setDraftFilters((current) => ({ ...current, state: value }))}
+                  options={[
+                    { value: "all", label: "All states" },
+                    ...stateOptions.map((state) => ({
+                      value: state,
+                      label: state,
+                    })),
+                  ]}
+                  placeholder="All states"
+                  className="bg-card"
+                />
               </div>
             </div>
 

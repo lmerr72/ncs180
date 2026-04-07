@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, ChevronRight, ChevronLeft, Wand2, Check, Building2, AlertTriangle, Search, TrendingUp } from "lucide-react";
+import CustomSelect from "@/components/shared/CustomSelect";
 import { cn } from "@/lib/utils";
 import {
   MOCK_USER, STATE_TERRITORIES, REP_KEY_TO_ID, REP_DETAILS, type ProspectStatus,
@@ -403,6 +404,8 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
   async function handleSubmit() {
     setSaving(true);
     setSaveError(null);
+    const auditAuthor = [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(" ") || "System";
+    const auditRepId = currentUser?.repId ?? MOCK_USER.id;
 
     try {
       if (isClientMode) {
@@ -419,7 +422,7 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
           unitCount: parseInt(form.unitCount, 10) || 0,
           contactIds: [],
           assignedRepId: isUnassignedSelection ? undefined : (selectedRep?.id ?? undefined),
-        }, currentUser?.repId ?? MOCK_USER.id);
+        }, auditAuthor, auditRepId);
       } else {
         await createProspect({
           companyName: form.companyName.trim(),
@@ -433,9 +436,9 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
           },
           unitCount: parseInt(form.unitCount, 10) || 0,
           contactIds: [],
-          assignedRepId: currentUser?.repId ?? MOCK_USER.id,
+          assignedRepId: auditRepId,
           prospectStatus: toProspectStatusValue(form.prospectStatus),
-        }, currentUser?.repId ?? MOCK_USER.id);
+        }, auditAuthor, auditRepId);
       }
 
       setSubmitted(true);
@@ -641,16 +644,13 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
               />
             </Field>
             <Field label="State" required>
-              <select
+              <CustomSelect
                 value={form.state}
-                onChange={(event) => set("state", event.target.value)}
-                className={cn(inputCls, "cursor-pointer")}
-              >
-                <option value="">Select state...</option>
-                {US_STATES.map((state) => (
-                  <option key={state} value={state}>{state}</option>
-                ))}
-              </select>
+                onChange={(value) => set("state", value)}
+                placeholder="Select state..."
+                options={US_STATES.map((state) => ({ value: state, label: state }))}
+                className="min-h-0"
+              />
             </Field>
           </div>
 
@@ -685,19 +685,19 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
 
           <Field label="Assigned Rep" required>
             <div className="flex gap-2">
-              <select
+              <CustomSelect
                 value={form.assignedRepId}
-                onChange={(event) => set("assignedRepId", event.target.value)}
-                className={cn(inputCls, "cursor-pointer flex-1")}
-              >
-                <option value="">Select a rep...</option>
-                <option value={UNASSIGNED_REP_ID}>Unassigned</option>
-                {reps.map((rep) => (
-                  <option key={rep.id} value={rep.id}>
-                    {rep.firstName} {rep.lastName}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => set("assignedRepId", value)}
+                placeholder="Select a rep..."
+                options={[
+                  { value: UNASSIGNED_REP_ID, label: "Unassigned" },
+                  ...reps.map((rep) => ({
+                    value: rep.id,
+                    label: `${rep.firstName} ${rep.lastName}`,
+                  })),
+                ]}
+                className="min-h-0 flex-1"
+              />
               <button
                 type="button"
                 onClick={handleAutoAssign}

@@ -4,9 +4,11 @@ const {
   buildClientRecord,
   contacts,
   mapAuditLog,
-  mapContact,
-  clients,
   mapClient,
+  mapContact,
+  mapTask,
+  clients,
+  tasks,
   mapUser,
   users
 } = require('./seedData');
@@ -44,6 +46,19 @@ function createMockDataStore() {
     async getClientById(id) {
       const client = clients.find((entry) => entry.id === id);
       return client ? mapClient(client) : null;
+    },
+
+    async getTasks(repId, clientId) {
+      return tasks
+        .filter((task) => task.repId === repId && (clientId ? task.clientId === clientId : true))
+        .sort((left, right) => {
+          if (left.completed !== right.completed) {
+            return Number(left.completed) - Number(right.completed);
+          }
+
+          return new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime();
+        })
+        .map((task) => mapTask(task, clients.find((entry) => entry.id === task.clientId) ?? null));
     },
 
     async getContactsByClientId(clientId) {
@@ -136,6 +151,52 @@ function createMockDataStore() {
       }
 
       return mapClient(client);
+    },
+
+    async createTask(input) {
+      const record = {
+        id: `task-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        repId: input.repId,
+        clientId: input.clientId ?? null,
+        title: input.title.trim(),
+        description: input.description.trim(),
+        taskType: input.taskType,
+        importance: input.importance,
+        dueDate: input.dueDate,
+        completed: input.completed ?? false,
+        commType: input.commType ?? null
+      };
+
+      tasks.unshift(record);
+      return mapTask(record, clients.find((entry) => entry.id === record.clientId) ?? null);
+    },
+
+    async updateTask(id, input) {
+      const task = tasks.find((entry) => entry.id === id);
+      if (!task) {
+        throw new Error(`Task ${id} was not found.`);
+      }
+
+      if (input.clientId !== undefined) task.clientId = input.clientId;
+      if (input.title !== undefined) task.title = input.title.trim();
+      if (input.description !== undefined) task.description = input.description.trim();
+      if (input.taskType !== undefined) task.taskType = input.taskType;
+      if (input.importance !== undefined) task.importance = input.importance;
+      if (input.dueDate !== undefined) task.dueDate = input.dueDate;
+      if (input.completed !== undefined) task.completed = input.completed;
+      if (input.commType !== undefined) task.commType = input.commType;
+
+      return mapTask(task, clients.find((entry) => entry.id === task.clientId) ?? null);
+    },
+
+    async deleteTask(id) {
+      const taskIndex = tasks.findIndex((entry) => entry.id === id);
+      if (taskIndex === -1) {
+        throw new Error(`Task ${id} was not found.`);
+      }
+
+      const [deletedTask] = tasks.splice(taskIndex, 1);
+      return mapTask(deletedTask, clients.find((entry) => entry.id === deletedTask.clientId) ?? null);
     },
 
     async createContact(clientId, input) {

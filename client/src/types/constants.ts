@@ -1,4 +1,4 @@
-import { ProspectStatus } from "./api";
+import { Importance, ProspectStatus } from "./api";
 
 export const US_STATES = [
     "Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut",
@@ -11,4 +11,6 @@ export const US_STATES = [
     "Wisconsin","Wyoming",
   ];
 
-  export const ProspectStatuses:ProspectStatus[] = [ 'not_started' , 'in_communication' , 'awaiting_review'  , 'verbal' , 'closed']
+  export const ProspectStatuses:ProspectStatus[] = [ 'not_started' , 'in_communication' , 'awaiting_review'  , 'verbal' , 'closed'];
+
+  export const ImportanceOptions: Importance[] = ['HIGH','MEDIUM','LOW']

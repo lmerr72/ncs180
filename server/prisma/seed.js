@@ -6,6 +6,7 @@ const {
   toPrismaClientCreateManyInput,
   toPrismaContactCreateManyInput,
   toPrismaOnboardingChecklistCreateManyInput,
+  toPrismaTaskCreateManyInput,
   toPrismaUserCreateManyInput
 } = require('../src/graphql/seedData');
 
@@ -41,6 +42,8 @@ function wrapSeedError(error) {
 }
 
 async function main() {
+  await prisma.file.deleteMany();
+  await prisma.task.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.contact.deleteMany();
   await prisma.client.deleteMany();
@@ -61,6 +64,10 @@ async function main() {
 
   await prisma.contact.createMany({
     data: toPrismaContactCreateManyInput()
+  });
+
+  await prisma.task.createMany({
+    data: toPrismaTaskCreateManyInput()
   });
 }
 

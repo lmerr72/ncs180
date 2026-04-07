@@ -21,6 +21,24 @@ enum ProspectStatus {
   CLOSED
 }
 
+enum TaskType {
+  PROSPECTING
+  FOLLOW_UP
+  TRAINING
+  OTHER
+}
+
+enum Importance {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskCommType {
+  EMAIL
+  PHONE
+}
+
 model User {
   id              String   @id @default(cuid())
   firstName       String
@@ -30,6 +48,7 @@ model User {
   role            String
   initials        String
   assignedClients Client[] @relation("AssignedRep")
+  assignedFiles   File[]
 }
 
 model OnboardingChecklist {
@@ -71,6 +90,8 @@ model Client {
   unitCount                   Int                 @default(0)
   onboardingChecklistId       String
   auditLogs                   AuditLog[]
+  files                       File[]
+  tasks                       Task[]
 
   @@index([assignedRepId])
 }
@@ -97,4 +118,41 @@ model AuditLog {
   type      String
 
   @@index([clientId, timestamp])
+}
+
+model File {
+  id             String   @id @default(cuid())
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  assignedRepId  String?
+  assignedRep    User?    @relation(fields: [assignedRepId], references: [id], onDelete: SetNull)
+  placementDate  DateTime
+  collectedDate  DateTime?
+  fileScore      Int
+  attachedFile   Bytes
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([clientId, placementDate])
+  @@index([assignedRepId])
+  @@map("Files")
+}
+
+model Task {
+  id          String          @id @default(cuid())
+  clientId    String?
+  client      Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  repId       String
+  title       String
+  description String
+  taskType    TaskType
+  importance  Importance
+  dueDate     DateTime
+  completed   Boolean         @default(false)
+  commType    TaskCommType?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([repId, dueDate])
+  @@index([clientId])
 }

@@ -247,6 +247,66 @@ const contacts = [
   }
 ];
 
+const tasks = [
+  {
+    id: 'task-seed-1',
+    repId: 'client-rep-002',
+    clientId: 'my-1',
+    title: 'Follow up on Q2 renewal',
+    description: 'Send updated renewal contract to the facilities director and confirm signature timeline.',
+    taskType: 'FOLLOW_UP',
+    importance: 'HIGH',
+    dueDate: '2026-04-06',
+    completed: false,
+    commType: 'EMAIL'
+  },
+  {
+    id: 'task-seed-2',
+    repId: 'client-rep-002',
+    clientId: 'my-2',
+    title: 'Call Apex Management about training',
+    description: 'Confirm attendees and agenda for the upcoming implementation training session.',
+    taskType: 'TRAINING',
+    importance: 'MEDIUM',
+    dueDate: '2026-04-07',
+    completed: false,
+    commType: 'PHONE'
+  },
+  {
+    id: 'task-seed-3',
+    repId: 'client-rep-002',
+    clientId: null,
+    title: 'Prepare prospecting list for Denver',
+    description: 'Build a new list of ownership groups to target this week.',
+    taskType: 'PROSPECTING',
+    importance: 'LOW',
+    dueDate: '2026-04-09',
+    completed: true,
+    commType: null
+  }
+];
+
+const auditLogs = [
+  {
+    id: 'audit-seed-my-1-1',
+    clientId: 'my-1',
+    action: 'Prospect created',
+    author: 'Gordon Marshall',
+    repId: '',
+    timestamp: '2024-12-15T14:30:00.000Z',
+    type: 'create'
+  },
+  {
+    id: 'audit-seed-my-1-2',
+    clientId: 'my-1',
+    action: 'Primary contact updated to Jennifer Walsh',
+    author: 'Gordon Marshall',
+    repId: '',
+    timestamp: '2025-12-02T09:05:00.000Z',
+    type: 'edit'
+  }
+];
+
 function createDefaultOnboardingChecklist() {
   return {
     agreement_signed: false,
@@ -353,6 +413,22 @@ function mapAuditLog(entry) {
   };
 }
 
+function mapTask(task, client = null) {
+  return {
+    id: task.id,
+    clientId: task.clientId,
+    repId: task.repId,
+    title: task.title,
+    description: task.description,
+    taskType: task.taskType,
+    importance: task.importance,
+    dueDate: serializeDate(task.dueDate),
+    completed: Boolean(task.completed),
+    commType: task.commType ?? null,
+    client: client ? mapClient(client) : null
+  };
+}
+
 function buildOnboardingChecklist(status) {
   if (status === 'active') {
     return    {    
@@ -453,20 +529,31 @@ function toPrismaContactCreateManyInput() {
   }));
 }
 
+function toPrismaTaskCreateManyInput() {
+  return tasks.map((task) => ({
+    ...task,
+    dueDate: toDate(task.dueDate)
+  }));
+}
+
 module.exports = {
   DEFAULT_CURRENT_USER_ID,
+  auditLogs,
   buildClientRecord,
   clients,
   contacts,
+  tasks,
   mapAuditLog,
-  mapContact,
   mapClient,
+  mapContact,
+  mapTask,
   mapUser,
   serializeDate,
   serializeDateTime,
   toPrismaClientCreateManyInput,
   toPrismaContactCreateManyInput,
   toPrismaOnboardingChecklistCreateManyInput,
+  toPrismaTaskCreateManyInput,
   toPrismaUserCreateManyInput,
   users
 };

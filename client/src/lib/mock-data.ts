@@ -1,4 +1,4 @@
-import type { Task, Meeting, Event, Client, UserProfile, GoalProgress, ClientStatus, TaskType } from "@/types/api";
+import type { Task, Meeting, Event, Client, UserProfile, GoalProgress, ClientStatus, TaskType, Importance } from "@/types/api";
 export type { TaskType } from "@/types/api";
 
 export const MOCK_USER: UserProfile = {
@@ -126,15 +126,6 @@ export const REP_DETAILS: Record<string, RepDetails> = {
   },
 };
 
-export const MOCK_TASKS: Task[] = [
-  { id: "t1", title: "Follow up with Synergy Properties", completed: false, priority: "high", dueDate: "Today" },
-  { id: "t2", title: "Prepare Q2 Forecast", completed: false, priority: "medium", dueDate: "Tomorrow" },
-  { id: "t3", title: "Send contract to Apex Management", completed: true, priority: "high", dueDate: "Yesterday" },
-  { id: "t4", title: "Review new feature release notes", completed: false, priority: "low", dueDate: "Mar 22" },
-  { id: "t5", title: "Schedule onboarding for Summit Housing", completed: false, priority: "medium", dueDate: "Mar 24" },
-  { id: "t6", title: "Update CRM with recent calls", completed: false, priority: "low", dueDate: "Mar 25" },
-];
-
 export const MOCK_MEETINGS: Meeting[] = [
   { id: "m1", title: "Q1 Sales Training", type: "training", date: "2024-03-20T10:00:00" },
   { id: "m2", title: "Client Demo - Synergy Properties", type: "meeting", date: "2024-03-22T14:30:00" },
@@ -208,7 +199,6 @@ export const REP_KEY_TO_ID: Record<string, string> = {
 
 
 export type CommType = "email" | "phone" | null;
-export type Importance = "high" | "medium" | "low";
 export type TaskCompanyOrigin = "all-clients" | "my-clients" | "pipeline";
 
 export type ExtendedTask = {
@@ -231,7 +221,7 @@ export const MOCK_EXTENDED_TASKS: ExtendedTask[] = [
     title: "Follow up on Q2 renewal",
     description: "Send updated renewal contract to the facilities director and confirm signature timeline.",
     taskType: "Follow-Up",
-    importance: "high",
+    importance: "HIGH",
     dueDate: "Today",
     completed: false,
     commType: "email",
@@ -244,7 +234,7 @@ export const MOCK_EXTENDED_TASKS: ExtendedTask[] = [
     title: "Budget review call",
     description: "Discuss Q3 budget availability and procurement process with the operations lead.",
     taskType: "Prospecting",
-    importance: "high",
+    importance: "HIGH",
     dueDate: "Tomorrow",
     completed: false,
     commType: "phone",
@@ -257,7 +247,7 @@ export const MOCK_EXTENDED_TASKS: ExtendedTask[] = [
     title: "Prepare Q2 forecast deck",
     description: "Compile Q1 actuals, build YoY comparison, and draft Q2 projection slides for leadership review.",
     taskType: "Other",
-    importance: "medium",
+    importance: "MEDIUM",
     dueDate: "Mar 20",
     completed: false,
     commType: null,
@@ -267,7 +257,7 @@ export const MOCK_EXTENDED_TASKS: ExtendedTask[] = [
     title: "New admin onboarding session",
     description: "Walk the Summit Housing admin team through reporting features, dashboard setup, and user roles.",
     taskType: "Training",
-    importance: "medium",
+    importance: "MEDIUM",
     dueDate: "Mar 24",
     completed: false,
     commType: null,
@@ -280,7 +270,7 @@ export const MOCK_EXTENDED_TASKS: ExtendedTask[] = [
     title: "Schedule intro demo",
     description: "Coordinate a platform demo for their Denver portfolio manager — confirm attendees and send calendar invite.",
     taskType: "Prospecting",
-    importance: "high",
+    importance: "HIGH",
     dueDate: "Mar 22",
     completed: false,
     commType: "email",
@@ -293,7 +283,7 @@ export const MOCK_EXTENDED_TASKS: ExtendedTask[] = [
     title: "Update call log",
     description: "Log last week's check-in notes, update primary contact info, and flag open action items.",
     taskType: "Follow-Up",
-    importance: "low",
+    importance: "LOW",
     dueDate: "Mar 25",
     completed: false,
     commType: "phone",
@@ -306,7 +296,7 @@ export const MOCK_EXTENDED_TASKS: ExtendedTask[] = [
     title: "MSA redlines review",
     description: "Review the MSA redlines submitted by their legal team and flag items requiring escalation.",
     taskType: "Follow-Up",
-    importance: "high",
+    importance: "HIGH",
     dueDate: "Mar 21",
     completed: false,
     commType: "email",
@@ -319,7 +309,7 @@ export const MOCK_EXTENDED_TASKS: ExtendedTask[] = [
     title: "Quarterly platform training",
     description: "Cover new reporting features, dashboard changes, and the updated placement workflow with the team.",
     taskType: "Training",
-    importance: "low",
+    importance: "LOW",
     dueDate: "Mar 28",
     completed: true,
     commType: null,
@@ -329,7 +319,7 @@ export const MOCK_EXTENDED_TASKS: ExtendedTask[] = [
     title: "Renewal terms call",
     description: "Discuss multi-year renewal pricing, volume discounts, and updated SLA terms.",
     taskType: "Follow-Up",
-    importance: "medium",
+    importance: "MEDIUM",
     dueDate: "Mar 23",
     completed: false,
     commType: "phone",
@@ -342,7 +332,7 @@ export const MOCK_EXTENDED_TASKS: ExtendedTask[] = [
     title: "Initial outreach email",
     description: "Send intro email to the property manager introducing our services and requesting a discovery call.",
     taskType: "Prospecting",
-    importance: "medium",
+    importance: "MEDIUM",
     dueDate: "Mar 26",
     completed: false,
     commType: "email",
@@ -355,7 +345,7 @@ export const MOCK_EXTENDED_TASKS: ExtendedTask[] = [
     title: "Placement volume check-in",
     description: "Review YTD placement count against contract minimums and identify any at-risk thresholds.",
     taskType: "Follow-Up",
-    importance: "medium",
+    importance: "MEDIUM",
     dueDate: "Mar 27",
     completed: false,
     commType: "phone",
@@ -368,7 +358,7 @@ export const MOCK_EXTENDED_TASKS: ExtendedTask[] = [
     title: "Send pricing proposal",
     description: "Draft and send a tiered pricing proposal based on their 10,000-unit portfolio across three markets.",
     taskType: "Prospecting",
-    importance: "high",
+    importance: "HIGH",
     dueDate: "Mar 29",
     completed: false,
     commType: "email",

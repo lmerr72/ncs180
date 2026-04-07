@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useAuth } from "@/context/AuthContext";
 import type { Timezone } from "@/types/api";
 import { Camera, Save, KeyRound, User as UserIcon, ShieldCheck, MapPin, Clock } from "lucide-react";
+import CustomSelect from "@/components/shared/CustomSelect";
 import OutlookSettingsWidget from "@/components/shared/OutlookSettingsWidget";
 
 export default function Profile() {
@@ -153,18 +154,19 @@ export default function Profile() {
                 <label className="text-sm font-semibold text-foreground flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-muted-foreground" /> Timezone
                 </label>
-                <select
+                <CustomSelect
                   value={profile.timezone}
-                  onChange={e => setProfile({...profile, timezone: e.target.value as Timezone})}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-border bg-background focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all font-medium"
-                >
-                  <option value="Mountain Time (MT)">Mountain Time (MT) — UTC−7/−6</option>
-                  <option value="Eastern Time (ET)">Eastern Time (ET) — UTC−5/−4</option>
-                  <option value="Central Time (CT)">Central Time (CT) — UTC−6/−5</option>
-                  <option value="Pacific Time (PT)">Pacific Time (PT) — UTC−8/−7</option>
-                  <option value="Alaska Time (AKT)">Alaska Time (AKT) — UTC−9/−8</option>
-                  <option value="Hawaii Time (HT)">Hawaii Time (HT) — UTC−10</option>
-                </select>
+                  onChange={value => setProfile({...profile, timezone: value as Timezone})}
+                  options={[
+                    { value: "Mountain Time (MT)", label: "Mountain Time (MT) — UTC−7/−6" },
+                    { value: "Eastern Time (ET)", label: "Eastern Time (ET) — UTC−5/−4" },
+                    { value: "Central Time (CT)", label: "Central Time (CT) — UTC−6/−5" },
+                    { value: "Pacific Time (PT)", label: "Pacific Time (PT) — UTC−8/−7" },
+                    { value: "Alaska Time (AKT)", label: "Alaska Time (AKT) — UTC−9/−8" },
+                    { value: "Hawaii Time (HT)", label: "Hawaii Time (HT) — UTC−10" },
+                  ]}
+                  className="px-4 py-3 font-medium"
+                />
               </div>
 
               <div className="mt-4 flex justify-end">

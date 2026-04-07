@@ -36,6 +36,8 @@ export interface UserProfile {
   repId?:string;
 }
 
+export type Importance = 'HIGH' | 'MEDIUM' | 'LOW'
+
 // add a client profile here too
 
 export type Timezone  =
@@ -138,7 +140,7 @@ export interface Task {
   repId?: string; // rep assigned to the task
   title: string;
   completed: boolean;
-  priority: 'low' | 'medium' | 'high';
+  priority: Importance;
   dueDate: string;
   notes?:string;
 }

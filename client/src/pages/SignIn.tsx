@@ -174,7 +174,7 @@ export default function SignIn() {
                 </div>
                 <div className="space-y-0.5">
                   <p className="text-xs font-semibold text-white/70">Client</p>
-                  <p className="text-xs text-white/40 font-mono">kmcgee / client</p>
+                  <p className="text-xs text-white/40 font-mono">kmcgee@property.com / client</p>
                 </div>
               </div>
             </div>

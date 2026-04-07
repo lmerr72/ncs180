@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useQuery } from "@apollo/client/react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { ProspectStatuses } from "@/types/constants";
+import { ImportanceOptions, ProspectStatuses } from "@/types/constants";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
   BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
@@ -17,12 +17,12 @@ import {
   Handshake,
 } from "lucide-react";
 import { DetailCard } from "@/components/shared/DetailCard";
+import CustomSelect from "@/components/shared/CustomSelect";
 import { LinkedInIcon, LinkedInUpdatesCard, type LinkedInPostItem } from "@/components/shared/LinkedInUpdatesCard";
 import { createBrowserLogger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
-import type { AuditEntry, Client, Note, OnboardingChecklist, ProspectStatus, UserProfile } from "@/types/api";
-import { useTasks } from "@/context/TasksContext";
-import type { Importance, TaskCompanyOrigin } from "@/lib/mock-data";
+import type { AuditEntry, Client, Importance, Note, OnboardingChecklist, ProspectStatus, UserProfile } from "@/types/api";
+import type { ExtendedTask } from "@/services/taskService";
 import { ClientStatus,TaskType } from "@/types/api";
 import { MOCK_CONTACTS } from "@/data/mock_contacts";
 import { formatApolloContactName, formatCompactNumber, formatCurrency, formatLabel, formatMonthYear, getInitials, timeAgo } from "@/helpers/formatters";
@@ -47,6 +47,7 @@ import {
   getClients,
   updateClient,
 } from "@/services/clientService";
+import { createTask, getTasks, updateTask } from "@/services/taskService";
 import { getUsersContext } from "@/services/userService";
 
 const logger = createBrowserLogger("ClientProfile");
@@ -280,7 +281,7 @@ export default function ClientProfile() {
   const routeState = location.state as { prospect?: Client } | null;
   const initialAssignedRep = reps.find(r => r.id === client?.assignedRepId) ?? null;
 
-  const { tasks, addTask, toggleTask } = useTasks();
+  const [tasks, setTasks] = useState<ExtendedTask[]>([]);
   const companyWebsiteUrl = client?.website ?? "";
   const companyLinkedInUrl = client?.linkedIn ?? "";
   const linkedInPosts = getLinkedInPosts(companyLinkedInUrl);
@@ -343,6 +344,36 @@ export default function ClientProfile() {
       ignore = true;
     };
   }, [id, routeState?.prospect]);
+
+  useEffect(() => {
+    if (!user?.repId || !client?.id) {
+      setTasks([]);
+      return;
+    }
+
+    let ignore = false;
+
+    async function loadTasks() {
+      try {
+        const nextTasks = await getTasks(user.repId, client.id);
+        if (!ignore) {
+          setTasks(nextTasks);
+        }
+      } catch (error) {
+        logger.error("Failed to load client tasks", {
+          clientId: client.id,
+          repId: user.repId,
+          error
+        });
+      }
+    }
+
+    void loadTasks();
+
+    return () => {
+      ignore = true;
+    };
+  }, [client?.id, user?.repId]);
 
   useEffect(() => {
     if (!showRepDropdown) return;
@@ -948,27 +979,63 @@ export default function ClientProfile() {
     }
   }
 
-  function handleCreateTask(data: { taskType: TaskType; importance: Importance; dueDate: string; notes: string }) {
-    const associatedCompanyOrigin: TaskCompanyOrigin = fromPipeline
-      ? "pipeline"
-      : fromMyClients
-        ? "my-clients"
-        : "all-clients";
+  async function handleCreateTask(data: { taskType: TaskType; importance: Importance; dueDate: string; notes: string }) {
+    if (!client || !user?.repId) return;
 
-    addTask({
-      ...data,
-      associatedCompanyName: client.companyName,
-      associatedCompanyId: client.id,
-      associatedCompanyOrigin,
-    });
-    setShowAddTaskModal(false);
-    showToast("Task added to Tasks");
+    try {
+      const createdTask = await createTask({
+        repId: user.repId,
+        clientId: client.id,
+        title: `${data.taskType} for ${client.companyName}`,
+        description: data.notes,
+        taskType: data.taskType,
+        importance: data.importance,
+        dueDate: data.dueDate,
+      });
+
+      setTasks((current) => [createdTask, ...current]);
+      setShowAddTaskModal(false);
+      showToast("Task added to Tasks");
+    } catch (error) {
+      logger.error("Failed to create task", {
+        clientId: client.id,
+        repId: user.repId,
+        error
+      });
+      showToast(error instanceof Error ? error.message : "Unable to create task.");
+    }
   }
 
   const statusCfg = STATUS_CONFIG[status];
   const StatusIcon = statusCfg.icon;
   const prospectStatusCfg = PROSPECT_STATUS_CONFIG[prospectStatus];
-  const relatedTasks = tasks.filter(task => task.associatedCompanyId === client.id);
+  const relatedTasks = client ? tasks.filter(task => task.associatedCompanyId === client.id) : [];
+
+  async function toggleRelatedTask(id: string) {
+    const existingTask = tasks.find((task) => task.id === id);
+    if (!existingTask) return;
+
+    const nextCompleted = !existingTask.completed;
+    const previousTasks = tasks;
+
+    setTasks((current) =>
+      current.map((task) => (task.id === id ? { ...task, completed: nextCompleted } : task))
+    );
+
+    try {
+      const updated = await updateTask(id, { completed: nextCompleted });
+      setTasks((current) => current.map((task) => (task.id === id ? updated : task)));
+    } catch (error) {
+      logger.error("Failed to update client task", {
+        clientId: client?.id,
+        taskId: id,
+        error
+      });
+      setTasks(previousTasks);
+      showToast(error instanceof Error ? error.message : "Unable to update task.");
+    }
+  }
+
   const apolloStatusMessage = (() => {
     if (apolloLoading) return "Loading Apollo account data...";
     if (apolloError) return apolloError;
@@ -1658,7 +1725,7 @@ export default function ClientProfile() {
             {relatedTasks.map(task => (
               <div key={task.id} className="px-6 py-4 flex items-start gap-4 hover:bg-muted/20 transition-colors">
                 <button
-                  onClick={() => toggleTask(task.id)}
+                  onClick={() => toggleRelatedTask(task.id)}
                   className="mt-0.5 flex-shrink-0 text-muted-foreground hover:text-primary transition-colors"
                 >
                   {task.completed
@@ -1673,9 +1740,9 @@ export default function ClientProfile() {
                     </span>
                     <span className={cn(
                       "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border capitalize",
-                      task.importance === "high" && "bg-red-100 text-red-700 border-red-200",
-                      task.importance === "medium" && "bg-amber-100 text-amber-700 border-amber-200",
-                      task.importance === "low" && "bg-slate-100 text-slate-500 border-slate-200",
+                      task.importance === "HIGH" && "bg-red-100 text-red-700 border-red-200",
+                      task.importance === "MEDIUM" && "bg-amber-100 text-amber-700 border-amber-200",
+                      task.importance === "LOW" && "bg-slate-100 text-slate-500 border-slate-200",
                     )}>
                       {task.importance}
                     </span>
@@ -2135,7 +2202,7 @@ function AddTaskModal({
   onClose: () => void;
 }) {
   const [taskType, setTaskType] = useState<TaskType>("Follow-Up");
-  const [importance, setImportance] = useState<Importance>("medium");
+  const [importance, setImportance] = useState<Importance>("MEDIUM");
   const [dueDate, setDueDate] = useState<string>(() => {
     const today = new Date();
     return new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
@@ -2179,30 +2246,28 @@ function AddTaskModal({
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                 Task Type
               </label>
-              <select
+              <CustomSelect
                 value={taskType}
-                onChange={e => setTaskType(e.target.value as TaskType)}
-                className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm cursor-pointer focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-              >
-                {(["Prospecting", "Follow-Up", "Training", "Other"] as TaskType[]).map(option => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
+                onChange={value => setTaskType(value as TaskType)}
+                options={(["Prospecting", "Follow-Up", "Training", "Other"] as TaskType[]).map((option) => ({
+                  value: option,
+                  label: option,
+                }))}
+              />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
                 Criticality
               </label>
-              <select
+              <CustomSelect
                 value={importance}
-                onChange={e => setImportance(e.target.value as Importance)}
-                className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm cursor-pointer focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-              >
-                {(["high", "medium", "low"] as Importance[]).map(option => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
+                onChange={value => setImportance(value as Importance)}
+                options={ImportanceOptions.map((option) => ({
+                  value: option,
+                  label: option,
+                }))}
+              />
             </div>
           </div>
 

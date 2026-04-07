@@ -1,10 +1,13 @@
 import { formatLabel } from "@/helpers/formatters";
+import CustomSelect from "@/components/shared/CustomSelect";
 import { cn } from "@/lib/utils";
 import { ClientStatus } from "@/types/api";
 import { Check, CircleOff, X } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { STATUS_CONFIG } from "./constants";
+
+type InactiveReason = "Moved to another company" | "Integration issues" | "Not a good fit" | "Other";
 
 const INACTIVE_REASONS: InactiveReason[] = [
     "Moved to another company",
@@ -119,19 +122,15 @@ export function StatusModal({
                   <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
                     Reason <span className="text-destructive">*</span>
                   </label>
-                  <select
+                  <CustomSelect
                     value={reason}
-                    onChange={e => setReason(e.target.value)}
+                    onChange={setReason}
+                    placeholder="Select a reason..."
+                    options={INACTIVE_REASONS.map((value) => ({ value, label: value }))}
                     className={cn(
-                      "w-full px-3.5 py-2.5 rounded-xl border-2 bg-background text-sm cursor-pointer focus:outline-none focus:ring-4 transition-all",
                       reason ? "border-border focus:border-primary focus:ring-primary/10" : "border-red-300 focus:border-red-400 focus:ring-red-100"
                     )}
-                  >
-                    <option value="">Select a reason...</option>
-                    {INACTIVE_REASONS.map(r => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
   
                 {/* Notes textarea */}

@@ -1,8 +1,8 @@
-const { DEFAULT_CURRENT_USER_ID, mapAuditLog, mapClient, mapContact, mapUser } = require('./seedData');
+const { DEFAULT_CURRENT_USER_ID, mapAuditLog, mapClient, mapContact, mapTask, mapUser } = require('./seedData');
 
 function createPostgresDataStore({ prisma } = {}) {
   const getDatabaseUrl = () => process.env.DATABASE_URL;
-  const REQUIRED_PRISMA_DELEGATES = ['user', 'client', 'contact', 'auditLog'];
+  const REQUIRED_PRISMA_DELEGATES = ['user', 'client', 'contact', 'auditLog', 'task'];
 
   const wrapPrismaError = (operation, error) => {
     if (!error) {
@@ -183,6 +183,28 @@ function createPostgresDataStore({ prisma } = {}) {
       return client ? mapClient(client) : null;
     },
 
+    async getTasks(repId, clientId) {
+      const prismaClient = getPrismaClient();
+      const tasks = await runPrismaOperation('getTasks', () =>
+        prismaClient.task.findMany({
+          where: {
+            repId,
+            ...(clientId ? { clientId } : {})
+          },
+          include: {
+            client: true
+          },
+          orderBy: [
+            { completed: 'asc' },
+            { dueDate: 'asc' },
+            { createdAt: 'desc' }
+          ]
+        })
+      );
+
+      return tasks.map((task) => mapTask(task, task.client));
+    },
+
     async getContactsByClientId(clientId) {
       const prismaClient = getPrismaClient();
       const contacts = await runPrismaOperation('getContactsByClientId', () =>
@@ -257,6 +279,74 @@ function createPostgresDataStore({ prisma } = {}) {
       );
 
       return mapAuditLog(created);
+    },
+
+    async createTask(input) {
+      const prismaClient = getPrismaClient();
+      const created = await runPrismaOperation('createTask', () =>
+        prismaClient.task.create({
+          data: {
+            repId: input.repId,
+            clientId: input.clientId ?? null,
+            title: input.title.trim(),
+            description: input.description.trim(),
+            taskType: input.taskType,
+            importance: input.importance,
+            dueDate: new Date(`${input.dueDate}T00:00:00.000Z`),
+            completed: input.completed ?? false,
+            commType: input.commType ?? null
+          },
+          include: {
+            client: true
+          }
+        })
+      );
+
+      return mapTask(created, created.client);
+    },
+
+    async updateTask(id, input) {
+      const prismaClient = getPrismaClient();
+      const updated = await runPrismaOperation('updateTask', () =>
+        prismaClient.task.update({
+          where: {
+            id
+          },
+          data: {
+            ...(input.clientId !== undefined ? { clientId: input.clientId } : {}),
+            ...(input.title !== undefined ? { title: input.title.trim() } : {}),
+            ...(input.description !== undefined ? { description: input.description.trim() } : {}),
+            ...(input.taskType !== undefined ? { taskType: input.taskType } : {}),
+            ...(input.importance !== undefined ? { importance: input.importance } : {}),
+            ...(input.dueDate !== undefined
+              ? { dueDate: new Date(`${input.dueDate}T00:00:00.000Z`) }
+              : {}),
+            ...(input.completed !== undefined ? { completed: input.completed } : {}),
+            ...(input.commType !== undefined ? { commType: input.commType } : {})
+          },
+          include: {
+            client: true
+          }
+        })
+      );
+
+      return mapTask(updated, updated.client);
+    },
+
+    async deleteTask(id) {
+      const prismaClient = getPrismaClient();
+      const deleted = await runPrismaOperation('deleteTask', () =>
+        prismaClient.task.delete({
+          where: {
+            id
+          },
+          include: {
+            client: true
+          }
+        })
+      );
+
+      return mapTask(deleted, deleted.client);
     },
 
     async createClient(input) {
