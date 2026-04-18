@@ -1,4 +1,5 @@
 const path = require('path');
+const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
@@ -33,6 +34,9 @@ module.exports = {
     ]
   },
   plugins: [
+    new webpack.DefinePlugin({
+      'process.env.NCS180_API_BASE_URL': JSON.stringify(process.env.NCS180_API_BASE_URL || '')
+    }),
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, 'index.html')
     })

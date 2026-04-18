@@ -15,7 +15,13 @@ Basic full-stack starter with:
 
 ## Postgres Setup
 
-The Apollo client already points at `/graphql`. The server now resolves those GraphQL queries from Postgres through Prisma.
+The Apollo client points at `/graphql` by default. The server now resolves those GraphQL queries from Postgres through Prisma.
+
+For split deployments where the static client and Node API are on different origins, set `NCS180_API_BASE_URL` when building the client:
+
+```sh
+NCS180_API_BASE_URL="https://your-api.example.com" npm run build --workspace client
+```
 
 1. Make sure a local PostgreSQL server is running on `localhost:5434`.
 2. Set `server/.env` with a direct Postgres connection string.

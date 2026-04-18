@@ -1,12 +1,12 @@
 /*
     Client 1 = longtime client, lots of placements
-    Client 2 =
+    Client 2 = 2 year client, hasn't placed in 1 year
     Client 3 =
-    Client 4 =
-    Client 5 =
+    Client 4 = inactive client
+    Client 5 = onboarding client
 */
 
-export const clients = [
+const clients = [
     {
       id: 'my-1',
       clientId: 'CLT-1001',
@@ -138,3 +138,7 @@ export const clients = [
         unitCount: 3900
       }
   ];
+
+module.exports = {
+  clients
+};

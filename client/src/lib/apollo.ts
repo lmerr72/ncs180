@@ -1,9 +1,37 @@
 import { ApolloClient, ApolloLink, HttpLink, InMemoryCache } from "@apollo/client";
+import { ServerParseError } from "@apollo/client/errors";
 import { onError } from "@apollo/client/link/error";
 import { RemoveTypenameFromVariablesLink } from "@apollo/client/link/remove-typename";
 import { createBrowserLogger } from "@/lib/logger";
 
 const apolloLogger = createBrowserLogger("apollo");
+const GRAPHQL_PATH = "/graphql";
+
+function joinUrl(baseUrl: string, path: string): string {
+  if (!baseUrl) {
+    return path;
+  }
+
+  return `${baseUrl.replace(/\/+$/, "")}${path}`;
+}
+
+export function getGraphqlUri(): string {
+  const apiBaseUrl = process.env.NCS180_API_BASE_URL?.trim() ?? "";
+
+  return joinUrl(apiBaseUrl, GRAPHQL_PATH);
+}
+
+function getParseErrorMetadata(error: Error) {
+  if (!ServerParseError.is(error)) {
+    return {};
+  }
+
+  return {
+    responseUrl: error.response.url,
+    statusCode: error.statusCode,
+    bodyText: error.bodyText.slice(0, 500)
+  };
+}
 
 function createRequestId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -46,12 +74,13 @@ const errorLoggingLink = onError(({ operation, error }) => {
     requestId: context.requestId,
     operationName: operation.operationName || "anonymous",
     durationMs: typeof context.startedAt === "number" ? Date.now() - context.startedAt : undefined,
-    error
+    error,
+    ...getParseErrorMetadata(error)
   });
 });
 
 const httpLink = new HttpLink({
-  uri: '/graphql'
+  uri: getGraphqlUri()
 });
 
 export const apolloClient = new ApolloClient({
