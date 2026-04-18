@@ -77,7 +77,7 @@ export default function Metrics() {
         </div>
 
         {/* Stat cards */}
-        <div className="flex flex-row gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
           <StatCard
             icon={Users}
             label="Active Clients"

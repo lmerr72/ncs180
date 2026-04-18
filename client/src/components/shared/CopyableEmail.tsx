@@ -57,16 +57,16 @@ export function CopyableEmail({ email, className }: CopyableEmailProps) {
   return (
     <div
       className={cn(
-        "group inline-flex items-center rounded-lg border border-border bg-muted/20 text-xs font-medium text-foreground transition-all hover:border-primary/30",
+        "group inline-flex min-w-0 items-center rounded-lg border border-border bg-muted/20 text-xs font-medium text-foreground transition-all hover:border-primary/30",
         className
       )}
     >
       <a
         href={`mailto:${email}`}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 hover:text-primary transition-colors"
+        className="inline-flex min-w-0 flex-1 items-center gap-1.5 px-3 py-1.5 hover:text-primary transition-colors"
       >
-        <Mail className="w-3.5 h-3.5" />
-        <span>{email}</span>
+        <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+        <span className="truncate">{email}</span>
       </a>
       <button
         type="button"

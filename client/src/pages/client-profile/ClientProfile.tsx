@@ -1299,25 +1299,25 @@ export default function ClientProfile() {
 
         {/* ── 1. CONTACTS (top) ───────────────────────────────────────── */}
         <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between">
+          <div className="px-4 py-4 border-b border-border/50 bg-muted/20 flex flex-col gap-3 sm:px-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-primary" />
               <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Points of Contact</h2>
               <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">{contacts.length}</span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:flex sm:items-center">
               <button
                 type="button"
                 onClick={handleApolloContactEnrichment}
                 disabled={apolloContactSyncing}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-primary/30 bg-primary/5 text-primary text-xs font-semibold hover:bg-primary/10 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-primary/30 bg-primary/5 text-primary text-xs font-semibold hover:bg-primary/10 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed sm:py-1.5"
               >
                 {apolloContactSyncing ? <Clock className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
                 Enrich with Apollo
               </button>
               <button
                 onClick={() => setShowAddContact(v => !v)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow-sm"
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow-sm sm:py-1.5"
               >
                 {showAddContact ? <X className="w-3.5 h-3.5" /> : <UserPlus className="w-3.5 h-3.5" />}
                 {showAddContact ? "Cancel" : "Add Contact"}
@@ -1332,7 +1332,7 @@ export default function ClientProfile() {
 
           {/* Add contact form */}
           {showAddContact && (
-            <form onSubmit={handleAddContact} className="px-6 py-5 border-b border-border/50 bg-primary/5">
+            <form onSubmit={handleAddContact} className="px-4 py-5 border-b border-border/50 bg-primary/5 sm:px-6">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">New Contact</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                 {[
@@ -1358,7 +1358,7 @@ export default function ClientProfile() {
                 <p className="mb-4 text-sm text-destructive">{contactError}</p>
               )}
               <div className="flex justify-end">
-                <button type="submit" disabled={contactSaving} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                <button type="submit" disabled={contactSaving} className="inline-flex w-full items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors sm:w-auto sm:py-2">
                   <Check className="w-4 h-4" /> {contactSaving ? "Saving..." : "Save Contact"}
                 </button>
               </div>
@@ -1368,17 +1368,17 @@ export default function ClientProfile() {
           {/* Contacts list */}
           <div className="divide-y divide-border/40">
             {contacts.length === 0 && (
-              <p className="px-6 py-8 text-center text-sm text-muted-foreground">No contacts yet — add one above.</p>
+              <p className="px-4 py-8 text-center text-sm text-muted-foreground sm:px-6">No contacts yet — add one above.</p>
             )}
             {contacts.map(contact => {
               const contactHref = getContactDetailHref(contact);
 
               return (
-                <div key={contact.id} className="px-6 py-5 flex items-start gap-5">
+                <div key={contact.id} className="px-4 py-5 flex flex-col gap-4 sm:px-6 lg:flex-row lg:items-start lg:gap-5">
                   {contactHref ? (
                     <Link
                       to={contactHref}
-                      className="flex flex-1 items-start gap-5 min-w-0 rounded-2xl -m-2 p-2 hover:bg-primary/5 transition-colors"
+                      className="flex w-full items-start gap-3 min-w-0 rounded-2xl -m-2 p-2 hover:bg-primary/5 transition-colors sm:gap-5 lg:flex-1"
                     >
                       <div className="w-11 h-11 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-primary font-bold text-sm flex-shrink-0">
                         {getInitials(contact.firstName,contact.lastName)}
@@ -1411,16 +1411,16 @@ export default function ClientProfile() {
                       </div>
                     </>
                   )}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:w-auto lg:flex-wrap lg:justify-end">
                     {contact.phone && (
-                      <a href={`tel:${contact.phone}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/20 text-xs font-medium text-foreground hover:text-primary hover:border-primary/30 transition-all">
+                      <a href={`tel:${contact.phone}`} className="inline-flex min-w-0 items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-muted/20 text-xs font-medium text-foreground hover:text-primary hover:border-primary/30 transition-all lg:py-1.5">
                         <Phone className="w-3.5 h-3.5" />{contact.phone}
                       </a>
                     )}
-                    {contact.email && <CopyableEmail email={contact.email} />}
+                    {contact.email && <CopyableEmail email={contact.email} className="w-full lg:w-auto lg:max-w-72" />}
                     {contact.linkedIn && (
                       <a href={contact.linkedIn} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/20 text-xs font-medium text-foreground hover:text-[#0A66C2] hover:border-[#0A66C2]/30 transition-all">
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-muted/20 text-xs font-medium text-foreground hover:text-[#0A66C2] hover:border-[#0A66C2]/30 transition-all lg:py-1.5">
                         <LinkedInIcon className="w-3.5 h-3.5 text-[#0A66C2]" />LinkedIn
                         <ExternalLink className="w-3 h-3 opacity-50" />
                       </a>
@@ -1429,7 +1429,7 @@ export default function ClientProfile() {
                       <button
                         type="button"
                         onClick={() => handleEditContact(contact)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/20 text-xs font-medium text-foreground hover:text-primary hover:border-primary/30 transition-all"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-muted/20 text-xs font-medium text-foreground hover:text-primary hover:border-primary/30 transition-all lg:py-1.5"
                       >
                         <Pencil className="w-3.5 h-3.5" />Edit
                       </button>
@@ -1439,7 +1439,7 @@ export default function ClientProfile() {
                         type="button"
                         onClick={() => requestDeleteContact(contact)}
                         disabled={deletingContactId === contact.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-medium text-red-700 hover:bg-red-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 bg-red-50 text-xs font-medium text-red-700 hover:bg-red-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed lg:py-1.5"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         {deletingContactId === contact.id ? "Deleting..." : "Delete"}
@@ -1453,7 +1453,7 @@ export default function ClientProfile() {
         </div>
 
         {/* ── 2. DETAIL STAT CARDS ───────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:gap-6">
           <DetailCard icon={MapPin} label="Headquarters" value={client.headquarters} color="text-blue-600" bg="bg-blue-100" />
           <DetailCard icon={Building2} label="Unit Count" value={client.unitCount.toLocaleString()} color="text-indigo-600" bg="bg-indigo-100" />
           {!isProspectView && (
@@ -1470,13 +1470,13 @@ export default function ClientProfile() {
               <DetailCard icon={BarChart2} label="Total Placements" value={(myClient.totalPlacements ?? 0).toString()} color="text-amber-600" bg="bg-amber-100" />
               <DetailCard icon={BarChart2} label="Placements This Year" value={myClient.placementsThisYear.toLocaleString()} color="text-orange-600" bg="bg-orange-100" />
               <DetailCard icon={Percent} label="Recovery Rate" value={`${myClient.recoveryRate.toFixed(1)}%`} color="text-teal-600" bg="bg-teal-100" />
-              <div className="bg-card rounded-2xl p-6 border border-border shadow-sm flex items-center gap-5 hover-elevate">
-                <div className="w-14 h-14 rounded-2xl bg-sky-100 flex items-center justify-center">
-                  <Building2 className="w-7 h-7 text-sky-600" />
+              <div className="min-w-0 bg-card rounded-xl p-3 border border-border shadow-sm flex items-center gap-2.5 hover-elevate sm:rounded-2xl sm:p-5 sm:gap-4 lg:p-6 lg:gap-5">
+                <div className="w-9 h-9 rounded-lg bg-sky-100 flex items-center justify-center flex-shrink-0 sm:w-12 sm:h-12 sm:rounded-xl lg:w-14 lg:h-14 lg:rounded-2xl">
+                  <Building2 className="w-4 h-4 text-sky-600 sm:w-6 sm:h-6 lg:w-7 lg:h-7" />
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Bucket</p>
-                  <span className={cn("inline-flex items-center justify-center w-10 h-10 rounded-full text-lg font-bold mt-1", bucketColors[myClient.bucket] ?? "bg-muted text-muted-foreground")}>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-muted-foreground leading-tight sm:text-sm">Bucket</p>
+                  <span className={cn("inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold mt-1 sm:w-10 sm:h-10 sm:text-lg", bucketColors[myClient.bucket] ?? "bg-muted text-muted-foreground")}>
                     {myClient.bucket}
                   </span>
                 </div>

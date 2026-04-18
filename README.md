@@ -23,6 +23,16 @@ For split deployments where the static client and Node API are on different orig
 NCS180_API_BASE_URL="https://your-api.example.com" npm run build --workspace client
 ```
 
+On Render Static Sites, add `NCS180_API_BASE_URL` to the **static site** environment variables, not only the backend service. Then redeploy the static site so Webpack compiles the API origin into the bundle. A deployed bundle that still logs `responseUrl: "https://<static-site>.onrender.com/graphql"` was built without this value.
+
+Alternatively, keep the client on relative URLs and add Render rewrite rules on the static site before the SPA catch-all:
+
+| Source | Destination | Action |
+| --- | --- | --- |
+| `/graphql` | `https://your-api-service.onrender.com/graphql` | Rewrite |
+| `/api/*` | `https://your-api-service.onrender.com/api/*` | Rewrite |
+| `/*` | `/index.html` | Rewrite |
+
 On a backend-only deployment, `client/dist/index.html` may not exist. That is fine for API-only hosting; `/api` and `/graphql` will still be served. For a single full-stack deployment, build the client before starting the server:
 
 ```sh

@@ -35,7 +35,8 @@ module.exports = {
   },
   plugins: [
     new webpack.DefinePlugin({
-      'process.env.NCS180_API_BASE_URL': JSON.stringify(process.env.NCS180_API_BASE_URL || '')
+      'process.env.NCS180_API_BASE_URL': JSON.stringify(process.env.NCS180_API_BASE_URL || ''),
+      'process.env.REACT_SIMPLE_MAPS_DEBUG': JSON.stringify(process.env.REACT_SIMPLE_MAPS_DEBUG || 'false')
     }),
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, 'index.html')

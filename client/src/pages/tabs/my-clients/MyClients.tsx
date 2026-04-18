@@ -262,7 +262,7 @@ export default function MyClients() {
         <p className="text-muted-foreground mt-1 text-lg">Manage your active accounts and properties.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-6 mb-8">
         {stats.map((stat, i) => (
           <DetailCard 
             icon={stat.icon}

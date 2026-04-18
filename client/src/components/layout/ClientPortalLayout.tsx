@@ -9,9 +9,19 @@ import {
   UserCircle,
   LogOut,
   UserCircle2,
+  Menu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 function Arrow180Logo({ className }: { className?: string }) {
   return (
@@ -49,11 +59,14 @@ export function ClientPortalLayout({ children }: ClientPortalLayoutProps) {
 
   const fullName = user ? `${user.firstName} ${user.lastName}` : "Client";
   const initials = user ? `${user.firstName[0]}${user.lastName[0]}` : "C";
+  const currentPage =
+    navItems.find((item) => location.pathname === item.href || location.pathname.startsWith(item.href + "/"))?.label ??
+    "Menu";
 
   return (
     <div className="flex h-screen w-full bg-slate-50/50">
       {/* Sidebar */}
-      <aside className="w-64 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-300 relative z-20 shadow-xl shadow-sidebar/10">
+      <aside className="hidden md:flex w-64 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex-col transition-all duration-300 relative z-20 shadow-xl shadow-sidebar/10">
         {/* Logo */}
         <div className="h-16 flex items-center px-6 border-b border-sidebar-border/50">
           <div className="flex items-center gap-2 text-sidebar-primary">
@@ -118,6 +131,84 @@ export function ClientPortalLayout({ children }: ClientPortalLayoutProps) {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <header className="md:hidden bg-sidebar border-b border-sidebar-border px-4 py-3 shadow-lg shadow-sidebar/10">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2 text-sidebar-primary">
+              <div className="bg-primary/20 p-1.5 rounded-md border border-primary/30">
+                <Arrow180Logo className="w-5 h-5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-display font-bold text-base tracking-tight text-white">NCS 180</p>
+                  <span className="text-[10px] font-semibold uppercase text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded">
+                    Client
+                  </span>
+                </div>
+                <p className="truncate text-xs font-medium text-sidebar-foreground/60">{currentPage}</p>
+              </div>
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  aria-label="Open navigation menu"
+                  className="border-sidebar-border bg-sidebar-accent text-sidebar-foreground"
+                  size="icon"
+                  type="button"
+                  variant="outline"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-64 border-sidebar-border bg-sidebar p-2 text-sidebar-foreground"
+                sideOffset={8}
+              >
+                <DropdownMenuLabel className="px-3 text-xs font-semibold uppercase text-sidebar-foreground/40">
+                  Menu
+                </DropdownMenuLabel>
+                {navItems.map((item) => {
+                  const isActive = location.pathname === item.href || location.pathname.startsWith(item.href + "/");
+                  return (
+                    <DropdownMenuItem asChild key={item.href}>
+                      <NavLink
+                        to={item.href}
+                        className={cn(
+                          "flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium outline-none transition-colors",
+                          isActive
+                            ? "bg-sidebar-primary/10 text-sidebar-primary"
+                            : "text-sidebar-foreground/70 focus:bg-sidebar-accent/50 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                        )}
+                      >
+                        <item.icon className={cn(
+                          "h-5 w-5 transition-colors",
+                          isActive ? "text-sidebar-primary" : "text-sidebar-foreground/50"
+                        )} />
+                        {item.label}
+                      </NavLink>
+                    </DropdownMenuItem>
+                  );
+                })}
+                <DropdownMenuSeparator className="mx-0 bg-sidebar-border/50" />
+                <DropdownMenuLabel className="px-3 py-2">
+                  <span className="block truncate text-sm font-semibold text-white">{fullName}</span>
+                  <span className="block truncate text-[11px] font-normal capitalize text-sidebar-foreground/40">
+                    {user?.role?.replace("_", " ")}
+                  </span>
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive"
+                  onSelect={handleLogout}
+                >
+                  <LogOut className="h-5 w-5 text-sidebar-foreground/50" />
+                  Logout
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+
         <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both">
             {children}
