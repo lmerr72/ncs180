@@ -16,3 +16,27 @@ describe('GET /api/health', () => {
     });
   });
 });
+
+describe('production client fallback', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it('does not throw when the client build is missing', async () => {
+    process.env.NODE_ENV = 'production';
+
+    const app = await createApp({
+      dataStore: createMockDataStore(),
+      clientDistPath: '/tmp/ncs180-missing-client-dist'
+    });
+
+    const response = await request(app).get('/');
+
+    expect(response.statusCode).toBe(404);
+    expect(response.body).toEqual({
+      error: 'Client app is not built on this server. API routes remain available under /api and /graphql.'
+    });
+  });
+});

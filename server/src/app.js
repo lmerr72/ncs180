@@ -1,5 +1,6 @@
 require('./loadEnv');
 
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
@@ -85,7 +86,8 @@ async function createApp({
   currentUserId = process.env.CURRENT_USER_ID || DEFAULT_CURRENT_USER_ID,
   linkedInService = createLinkedInService(),
   outlookService = createOutlookService(),
-  apolloService = createApolloService()
+  apolloService = createApolloService(),
+  clientDistPath = path.resolve(__dirname, '../../client/dist')
 } = {}) {
   const app = express();
   const appLogger = createLogger('app');
@@ -748,14 +750,25 @@ async function createApp({
   );
 
   if (isProduction) {
-    const clientDistPath = path.resolve(__dirname, '../../client/dist');
     const clientIndexPath = path.join(clientDistPath, 'index.html');
 
-    app.use(express.static(clientDistPath));
+    if (fs.existsSync(clientIndexPath)) {
+      app.use(express.static(clientDistPath));
 
-    app.get(/^(?!\/(?:api|graphql)(?:\/|$)).*/, (_req, res) => {
-      res.sendFile(clientIndexPath);
-    });
+      app.get(/^(?!\/(?:api|graphql)(?:\/|$)).*/, (_req, res) => {
+        res.sendFile(clientIndexPath);
+      });
+    } else {
+      appLogger.warn('client_dist_missing', {
+        clientIndexPath
+      });
+
+      app.get(/^(?!\/(?:api|graphql)(?:\/|$)).*/, (_req, res) => {
+        res.status(404).json({
+          error: 'Client app is not built on this server. API routes remain available under /api and /graphql.'
+        });
+      });
+    }
   } else {
     app.get(/^(?!\/(?:api|graphql)(?:\/|$)).*/, (req, res) => {
       res.redirect(302, buildClientDevRedirectUrl(clientDevServerUrl, req.originalUrl || '/'));

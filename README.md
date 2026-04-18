@@ -23,6 +23,13 @@ For split deployments where the static client and Node API are on different orig
 NCS180_API_BASE_URL="https://your-api.example.com" npm run build --workspace client
 ```
 
+On a backend-only deployment, `client/dist/index.html` may not exist. That is fine for API-only hosting; `/api` and `/graphql` will still be served. For a single full-stack deployment, build the client before starting the server:
+
+```sh
+npm run build --workspace client
+npm run start --workspace server
+```
+
 1. Make sure a local PostgreSQL server is running on `localhost:5434`.
 2. Set `server/.env` with a direct Postgres connection string.
 
