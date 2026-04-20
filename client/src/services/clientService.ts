@@ -1,6 +1,6 @@
 import { gql } from "@apollo/client";
 import { apolloClient } from "@/lib/apollo";
-import type { Client, OnboardingChecklist, UserProfile } from "@/types/api";
+import type { Client, ClientMetadata, OnboardingChecklist, UserProfile } from "@/types/api";
 import { createAuditLogEntry } from "@/services/auditLogService";
 import { AuthProvider } from "@/context/AuthContext";
 
@@ -41,6 +41,7 @@ export type GraphqlClient = {
   contactIds?: string[] | null;
   unitCount: number;
   onboardingChecklist?: OnboardingChecklist | null;
+  metadata?: ClientMetadata | null;
 };
 
 export type ClientsQueryData = {
@@ -118,6 +119,7 @@ export type UpdateClientMutationData = {
     clientStatus?: GraphqlClientStatus;
     prospectStatus?: GraphqlProspectStatus;
     onboardingChecklist?: OnboardingChecklist | null;
+    metadata?: ClientMetadata | null;
   };
 };
 
@@ -129,6 +131,7 @@ export type UpdateClientMutationVariables = {
     prospectStatus?: Exclude<GraphqlProspectStatus, null>;
     onboardingChecklist?: OnboardingChecklist | null;
     createdClientDate?: Date | string;
+    metadata?: Partial<ClientMetadata>;
   };
 };
 
@@ -166,6 +169,12 @@ export const CLIENT_FIELDS = gql`
       ach
       integration_setup
       first_file_placed
+    }
+    metadata {
+      prelegal
+      settled_in_full
+      integration
+      tax_campaign
     }
   }
 `;
@@ -253,6 +262,12 @@ export const UPDATE_CLIENT_MUTATION = gql`
         integration_setup
         first_file_placed
       }
+      metadata {
+        prelegal
+        settled_in_full
+        integration
+        tax_campaign
+      }
     }
   }
 `;
@@ -287,6 +302,13 @@ function toProspectStatus(status?: GraphqlClient["prospectStatus"]): Client["pro
   }
 }
 
+const DEFAULT_CLIENT_METADATA: ClientMetadata = {
+  prelegal: false,
+  settled_in_full: 0,
+  integration: "",
+  tax_campaign: false
+};
+
 export function normalizeClient(client: GraphqlClient): Client {
   return {
     id: client.id,
@@ -313,7 +335,11 @@ export function normalizeClient(client: GraphqlClient): Client {
     },
     contactIds: client.contactIds ?? [],
     unitCount: client.unitCount,
-    onboardingChecklist: client.onboardingChecklist ?? null
+    onboardingChecklist: client.onboardingChecklist ?? null,
+    metadata: {
+      ...DEFAULT_CLIENT_METADATA,
+      ...(client.metadata ?? {})
+    }
   };
 }
 
@@ -435,6 +461,7 @@ export async function updateClient(
     clientId: updatedClient.id,
     action: auditMessage,
     author: repId,
+    repId,
     type: "update"
   });
 

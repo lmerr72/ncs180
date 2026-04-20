@@ -212,6 +212,15 @@ function createDefaultOnboardingChecklist() {
   };
 }
 
+function createDefaultClientMetadata() {
+  return {
+    prelegal: false,
+    settled_in_full: 0,
+    integration: '',
+    tax_campaign: false
+  };
+}
+
 function toDate(value) {
   return value ? new Date(`${value}T00:00:00.000Z`) : null;
 }
@@ -292,7 +301,11 @@ function mapClient(client) {
       : null,
     contactIds: client.contactIds ?? [],
     unitCount: client.unitCount,
-    onboardingChecklist: buildOnboardingChecklist(client.clientStatus)
+    onboardingChecklist: buildOnboardingChecklist(client.clientStatus),
+    metadata: {
+      ...createDefaultClientMetadata(),
+      ...(client.metadata ?? {})
+    }
   };
 }
 
@@ -377,7 +390,8 @@ function buildClientRecord(input, overrides = {}) {
     unitCount: input.unitCount ?? 0,
     onboardingChecklist: hasOverride('onboardingChecklist')
       ? overrides.onboardingChecklist
-      : createDefaultOnboardingChecklist()
+      : createDefaultOnboardingChecklist(),
+    metadata: hasOverride('metadata') ? overrides.metadata : createDefaultClientMetadata()
   };
 }
 

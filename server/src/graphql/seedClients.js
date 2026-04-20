@@ -31,7 +31,13 @@ const clients = [
       state: 'CO',
       zipCode: '80202',
       contactIds: ['contact-seed-my-1'],
-      unitCount: 3200
+      unitCount: 3200,
+      metadata: {
+        settled_in_full: 0,
+        prelegal: true,
+        integration: null,
+        tax_campaign:false
+      }
     },
     {
       id: 'my-2',
@@ -57,7 +63,13 @@ const clients = [
       state: 'TX',
       zipCode: '78701',
       contactIds: ['contact-seed-my-2'],
-      unitCount: 8500
+      unitCount: 8500,   
+      metadata: {
+        settled_in_full: 0,
+        prelegal: true,
+        integration: null,
+        tax_campaign:false
+      }
     },
     {
       id: 'my-3',
@@ -83,7 +95,12 @@ const clients = [
       state: 'CO',
       zipCode: '80203',
       contactIds: ['contact-seed-my-3'],
-      unitCount: 2150
+      unitCount: 2150,   metadata: {
+        settled_in_full: 80,
+        prelegal: true,
+        integration: null,
+        tax_campaign:false
+      }
     },
     {
       id: 'all-4',
@@ -109,7 +126,12 @@ const clients = [
       state: 'IL',
       zipCode: '60606',
       contactIds: ['contact-seed-all-4'],
-      unitCount: 3900
+      unitCount: 3900,   metadata: {
+        settled_in_full: 75,
+        prelegal: true,
+        integration: null,
+        tax_campaign:true
+      }
     },
     {
         id: 'all-5',
@@ -135,7 +157,12 @@ const clients = [
         state: 'IL',
         zipCode: '60606',
         contactIds: ['contact-seed-all-4'],
-        unitCount: 3900
+        unitCount: 3900,   metadata: {
+          settled_in_full: 0,
+          prelegal: false,
+          integration: null,
+          tax_campaign:true
+        }
       }
   ];
 

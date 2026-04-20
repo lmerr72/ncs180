@@ -178,6 +178,14 @@ const typeDefs = `
     clientStatus: ClientStatus
     prospectStatus: ProspectStatus
     createdClientDate: String
+    metadata: ClientMetadataInput
+  }
+
+  input ClientMetadataInput {
+    prelegal: Boolean
+    settled_in_full: Float
+    integration: String
+    tax_campaign: Boolean
   }
 
   input UpdateTaskInput {
@@ -224,6 +232,13 @@ const typeDefs = `
     first_file_placed: Boolean!
   }
 
+  type ClientMetadata {
+    prelegal: Boolean!
+    settled_in_full: Float!
+    integration: String
+    tax_campaign: Boolean!
+  }
+
   type Client {
     id: ID!
     clientId: ID
@@ -246,6 +261,7 @@ const typeDefs = `
     contactIds:[String]
     unitCount: Int!
     onboardingChecklist: OnboardingChecklist
+    metadata: ClientMetadata!
   }
 `;
 

@@ -72,6 +72,13 @@ export interface OnboardingChecklist {
   first_file_placed:     boolean;
 }
 
+export interface ClientMetadata {
+  prelegal: boolean;
+  settled_in_full: number;
+  integration: string;
+  tax_campaign: boolean;
+}
+
 export interface ClientRep {
   id: string;
   firstName:string;
@@ -128,6 +135,7 @@ export interface Client extends Prospect{
   recoveryRate?: number;
   bucket?: 1 | 2 | 3;
   onboardingChecklist?: OnboardingChecklist | null;
+  metadata: ClientMetadata;
 }
 
 export interface History {

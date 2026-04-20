@@ -471,6 +471,7 @@ export default function MyClients() {
                         </div>
                         <Link
                           to={`/clients/${client.id}?from=my-clients`}
+                          state={{ client }}
                           className="font-bold text-foreground hover:text-primary hover:underline transition-colors"
                         >
                           {client.companyName}

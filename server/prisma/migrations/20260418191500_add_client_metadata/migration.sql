@@ -1,0 +1,2 @@
+ALTER TABLE "Client"
+ADD COLUMN "metadata" JSONB NOT NULL DEFAULT '{}';

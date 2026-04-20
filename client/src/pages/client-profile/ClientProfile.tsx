@@ -1,31 +1,29 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { createPortal } from "react-dom";
 import { useQuery } from "@apollo/client/react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { ImportanceOptions, ProspectStatuses } from "@/types/constants";
+import { ProspectStatuses } from "@/types/constants";
 import {
   Breadcrumb, BreadcrumbItem, BreadcrumbLink,
   BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { Spinner } from "@/components/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Building2, MapPin, Hash, Users, BarChart2, TrendingUp, Percent,
-  Globe, Phone, Mail, ExternalLink, UserPlus, X, Plus,
-  StickyNote, ClipboardList, Clock, Check, ChevronDown,
-  Activity, CircleOff, Search, CalendarDays, PhoneCall, Circle, CheckCircle2,
-  BriefcaseBusiness, Sparkles, UserRound, Pencil, Trash2,
-  Handshake,
+  Globe, Phone, ExternalLink, UserPlus, X,
+  Clock, Check, ChevronDown,
+  BriefcaseBusiness, Sparkles, Pencil, Trash2,
 } from "lucide-react";
 import { DetailCard } from "@/components/shared/DetailCard";
-import CustomSelect from "@/components/shared/CustomSelect";
 import { LinkedInIcon, LinkedInUpdatesCard, type LinkedInPostItem } from "@/components/shared/LinkedInUpdatesCard";
 import { createBrowserLogger } from "@/lib/logger";
 import { cn } from "@/lib/utils";
-import type { AuditEntry, Client, Importance, Note, OnboardingChecklist, ProspectStatus, UserProfile } from "@/types/api";
+import type { AuditEntry, Client, ClientMetadata, Importance, Note, OnboardingChecklist, ProspectStatus, UserProfile } from "@/types/api";
 import type { ExtendedTask } from "@/services/taskService";
 import { ClientStatus,TaskType } from "@/types/api";
 import { MOCK_CONTACTS } from "@/data/mock_contacts";
-import { formatApolloContactName, formatCompactNumber, formatCurrency, formatLabel, formatMonthYear, getInitials, timeAgo } from "@/helpers/formatters";
+import { formatLabel, formatMonthYear, getInitials } from "@/helpers/formatters";
 import { useAuth } from "@/context/AuthContext";
 import { OnboardingWidget } from "./OnboardingWidget";
 import { STATUS_CONFIG } from "./constants";
@@ -34,6 +32,17 @@ import AuditLogWidget from "@/components/shared/AuditLogWidget";
 import { CopyableEmail } from "@/components/shared/CopyableEmail";
 import OutlookEmailWidget from "@/components/shared/OutlookEmailWidget";
 import { StatusModal } from "./StatusModal";
+import { AddTaskModal } from "./AddTaskModal";
+import { AccountHistoryWidget, type HistoryEntry } from "./AccountHistoryWidget";
+import { ApolloAccountSnapshot, type ApolloSnapshotResponse } from "./ApolloAccountSnapshot";
+import { ApolloContactHealthWidget, type ApolloContactHealthEntry, type ApolloContactHealthResponse } from "./ApolloContactHealthWidget";
+import { ApolloContactsWizard, type ApolloContactWizardCandidate } from "./ApolloContactsWizard";
+import { ClientMetadataWidget } from "./ClientMetadataWidget";
+import { DeleteContactConfirmModal } from "./DeleteContactConfirmModal";
+import { EditContactModal, type EditableContactForm } from "./EditContactModal";
+import { ClientPlacementMetricsWidget } from "./ClientPlacementMetricsWidget";
+import { ClientReportingStats } from "./ClientReportingStats";
+import { RelatedTasksWidget } from "./RelatedTasksWidget";
 import {
   CLIENT_CONTACTS_QUERY,
   type ClientContactsQueryData,
@@ -61,45 +70,6 @@ const bucketColors: Record<number, string> = {
 type InactiveReason = "Moved to another company" | "Integration issues" | "Not a good fit" | "Other";
 
 type Contact = { id: string; firstName: string; lastName: string; title: string; email: string; phone: string; linkedIn: string; isPrimary?: boolean };
-type HistoryEntryType = "meeting" | "email" | "call";
-type HistoryEntry = { id: string; type: HistoryEntryType; subject: string; summary: string; actor: string; timestamp: string };
-type ApolloSnapshotResponse = {
-  configured: boolean;
-  matchedAccount: boolean;
-  organization: {
-    name: string;
-    domain: string;
-    website: string;
-    industry: string;
-    employeeCount: number | null;
-    annualRevenue: number | null;
-    location: string;
-    keywords: string[];
-  } | null;
-  owner: {
-    id: string;
-    name: string;
-    email: string;
-    title: string;
-  } | null;
-  openDeals: Array<{
-    id: string;
-    name: string;
-    stage: string;
-    amount: number | null;
-    closeDate: string | null;
-  }>;
-  recentActivity: Array<{
-    id: string;
-    type: string;
-    title: string;
-    summary: string;
-    at: string | null;
-    actor: string;
-  }>;
-  warnings: string[];
-  error?: string;
-};
 type ApolloContactCandidate = {
   id: string | null;
   firstName: string;
@@ -119,40 +89,11 @@ type ApolloCompanyContactsResponse = {
   warnings: string[];
   error?: string;
 };
-type ApolloContactHealthEntry = {
-  firstName: string;
-  lastName: string;
-  title: string;
-  currentEmail: string;
-  currentPhone: string;
-  currentLinkedIn: string;
-  apolloEmail: string;
-  apolloPhone: string;
-  apolloLinkedIn: string;
-  canImproveEmail: boolean;
-  canImprovePhone: boolean;
-  canImproveLinkedIn: boolean;
-};
-type ApolloContactHealthResponse = {
-  configured: boolean;
-  contacts: ApolloContactHealthEntry[];
-  warnings: string[];
-  error?: string;
-};
-type ApolloContactWizardCandidate = ApolloContactCandidate & {
-  dedupeKey: string;
-  selected: boolean;
-  alreadyExists: boolean;
-};
-type EditableContactForm = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  title: string;
-  email: string;
-  phone: string;
-  linkedIn: string;
-  isPrimary: boolean;
+const DEFAULT_CLIENT_METADATA: ClientMetadata = {
+  prelegal: false,
+  settled_in_full: 0,
+  integration: "",
+  tax_campaign: false,
 };
 
 const PROSPECT_STATUS_CONFIG: Record<Exclude<ProspectStatus, "inactive">, { badge: string; dot: string }> = {
@@ -170,27 +111,6 @@ const SEED_HISTORY: HistoryEntry[] = [
   { id: "h3", type: "call", subject: "Operations check-in", summary: "Confirmed onboarding questions were resolved and next review is set for April.", actor: "Jennifer Walsh", timestamp: "2026-03-05T17:30:00Z" },
   { id: "h4", type: "email", subject: "Collections performance recap", summary: "Shared February recovery-rate summary with notes on underperforming sites.", actor: "Gordon Marshall", timestamp: "2026-02-28T16:10:00Z" },
 ];
-
-const HISTORY_STYLES: Record<HistoryEntryType, { icon: React.ElementType; badge: string; chip: string; label: string }> = {
-  meeting: {
-    icon: CalendarDays,
-    badge: "bg-blue-100 border-blue-300 text-blue-600",
-    chip: "bg-blue-50 text-blue-700 border-blue-200",
-    label: "Meeting",
-  },
-  email: {
-    icon: Mail,
-    badge: "bg-violet-100 border-violet-300 text-violet-600",
-    chip: "bg-violet-50 text-violet-700 border-violet-200",
-    label: "Email",
-  },
-  call: {
-    icon: PhoneCall,
-    badge: "bg-emerald-100 border-emerald-300 text-emerald-600",
-    chip: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    label: "Call",
-  },
-};
 
 const LINKEDIN_POSTS_BY_COMPANY_URL: Record<string, LinkedInPostItem[]> = {
   "https://www.linkedin.com/company/griffisblessing-inc-": [],
@@ -271,6 +191,7 @@ export default function ClientProfile() {
   const [allClients, setAllClients] = useState<Client[]>([]);
   const [reps, setReps] = useState<UserProfile[]>([]);
   const [client, setClient] = useState<Client | null>(null);
+  const [clientLoading, setClientLoading] = useState(true);
   const from = searchParams.get("from");
 
   const fromMyClients = from === "my-clients";
@@ -278,7 +199,8 @@ export default function ClientProfile() {
   const originLabel = fromPipeline ? "Pipeline" : fromMyClients ? "My Clients" : "All Clients";
   const originHref = fromPipeline ? "/pipeline" : fromMyClients ? "/my-clients" : "/all-clients";
 
-  const routeState = location.state as { prospect?: Client } | null;
+  const routeState = location.state as { client?: Client; prospect?: Client } | null;
+  const routeStateClient = routeState?.client ?? routeState?.prospect ?? null;
   const initialAssignedRep = reps.find(r => r.id === client?.assignedRepId) ?? null;
 
   const [tasks, setTasks] = useState<ExtendedTask[]>([]);
@@ -304,6 +226,12 @@ export default function ClientProfile() {
   const [onboardingChecklist, setOnboardingChecklist] = useState<OnboardingChecklist | null>(
     client?.onboardingChecklist ?? null
   );
+  const [metadataForm, setMetadataForm] = useState<ClientMetadata>({
+    ...DEFAULT_CLIENT_METADATA,
+    ...(client?.metadata ?? {}),
+  });
+  const [metadataSaving, setMetadataSaving] = useState(false);
+  const [metadataEditing, setMetadataEditing] = useState(false);
   const [showProspectStatusDropdown, setShowProspectStatusDropdown] = useState(false);
   const [prospectStatusSaving, setProspectStatusSaving] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
@@ -325,17 +253,27 @@ export default function ClientProfile() {
     let ignore = false;
 
     async function loadData() {
-      const [clients, usersData, selectedClient] = await Promise.all([
-        getClients(),
-        getUsersContext(),
-        id ? getClientById(id) : Promise.resolve(null),
-      ]);
+      setClientLoading(true);
 
-      if (ignore) return;
+      try {
+        const [clients, usersData, selectedClient] = await Promise.all([
+          getClients(),
+          getUsersContext(),
+          id ? getClientById(id) : Promise.resolve(null),
+        ]);
 
-      setAllClients(clients);
-      setReps(usersData.users);
-      setClient(selectedClient ?? routeState?.prospect ?? null);
+        if (ignore) return;
+
+        const fallbackClient = clients.find((entry) => entry.id === id || entry.clientId === id) ?? null;
+
+        setAllClients(clients);
+        setReps(usersData.users);
+        setClient(selectedClient ?? fallbackClient ?? routeStateClient);
+      } finally {
+        if (!ignore) {
+          setClientLoading(false);
+        }
+      }
     }
 
     void loadData();
@@ -343,7 +281,7 @@ export default function ClientProfile() {
     return () => {
       ignore = true;
     };
-  }, [id, routeState?.prospect]);
+  }, [id, routeStateClient]);
 
   useEffect(() => {
     if (!user?.repId || !client?.id) {
@@ -424,9 +362,61 @@ export default function ClientProfile() {
     setOnboardingChecklist(client?.onboardingChecklist ?? null);
   }, [client?.onboardingChecklist]);
 
+  useEffect(() => {
+    setMetadataForm({
+      ...DEFAULT_CLIENT_METADATA,
+      ...(client?.metadata ?? {}),
+    });
+  }, [client?.metadata]);
+
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 4000);
+  }
+
+  function updateMetadataForm<K extends keyof ClientMetadata>(field: K, value: ClientMetadata[K]) {
+    setMetadataForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  async function handleSaveMetadata() {
+    if (!client?.id || metadataSaving) return;
+
+    const nextMetadata: ClientMetadata = {
+      prelegal: metadataForm.prelegal,
+      settled_in_full: Number.isFinite(metadataForm.settled_in_full) ? metadataForm.settled_in_full : 0,
+      integration: metadataForm.integration.trim(),
+      tax_campaign: metadataForm.tax_campaign,
+    };
+
+    setMetadataSaving(true);
+    try {
+      const response = await updateClient(
+        client.id,
+        { metadata: nextMetadata },
+        user?.repId ?? "",
+        "Client metadata updated"
+      );
+      const savedMetadata = response.metadata ?? nextMetadata;
+
+      setClient((current) => current ? { ...current, metadata: savedMetadata } : current);
+      setAllClients((current) =>
+        current.map((entry) => entry.id === client.id ? { ...entry, metadata: savedMetadata } : entry)
+      );
+      setMetadataForm(savedMetadata);
+      setMetadataEditing(false);
+      showToast("Client details updated");
+    } catch (error) {
+      logger.error("Failed to save client metadata", {
+        clientId: client.id,
+        error,
+      });
+      showToast(error instanceof Error ? error.message : "Unable to update client details.");
+    } finally {
+      setMetadataSaving(false);
+    }
   }
 
   function handleRepSelect(rep: UserProfile) {
@@ -884,6 +874,17 @@ export default function ClientProfile() {
     return `/contacts/${matchedContact.id}?fromClientId=${client?.id ?? ""}&fromClientName=${encodeURIComponent(client?.companyName ?? "")}`;
   }
 
+  if (clientLoading) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
+          <Spinner className="mb-4 size-8 text-primary" />
+          <p className="text-lg font-medium">Loading client...</p>
+        </div>
+      </AppLayout>
+    );
+  }
+
   if (!client) {
     return (
       <AppLayout>
@@ -1292,13 +1293,20 @@ export default function ClientProfile() {
         
       </div>
 
-      <div className="space-y-8">
-        {status === "onboarding" && onboardingChecklist && displayClientId && (
-          <OnboardingWidget checklist={onboardingChecklist} clientId={displayClientId} />
-        )}
+      <Tabs defaultValue="details" className="space-y-8">
+        <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-lg border border-border bg-card p-1 sm:w-auto">
+          <TabsTrigger value="details" className="rounded-md px-4 py-2">Details</TabsTrigger>
+          <TabsTrigger value="reporting" className="rounded-md px-4 py-2">Reporting</TabsTrigger>
+          <TabsTrigger value="metrics" className="rounded-md px-4 py-2">Metrics</TabsTrigger>
+        </TabsList>
 
-        {/* ── 1. CONTACTS (top) ───────────────────────────────────────── */}
-        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+        <TabsContent value="details" className="mt-0 space-y-8">
+          {status === "onboarding" && onboardingChecklist && displayClientId && (
+            <OnboardingWidget checklist={onboardingChecklist} clientId={displayClientId} />
+          )}
+
+          {/* ── 1. CONTACTS (top) ───────────────────────────────────────── */}
+          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="px-4 py-4 border-b border-border/50 bg-muted/20 flex flex-col gap-3 sm:px-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-primary" />
@@ -1485,343 +1493,47 @@ export default function ClientProfile() {
           )}
         </div>
 
-        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Apollo Account Snapshot</h2>
-            </div>
-            {apolloSnapshot?.owner && (
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border bg-background text-xs text-muted-foreground">
-                <UserRound className="w-3.5 h-3.5 text-primary" />
-                <span className="font-semibold text-foreground">{apolloSnapshot.owner.name}</span>
-                {apolloSnapshot.owner.title && <span>{apolloSnapshot.owner.title}</span>}
-              </div>
-            )}
-          </div>
+        <ClientMetadataWidget
+          metadata={metadataForm}
+          editing={metadataEditing}
+          saving={metadataSaving}
+          onEdit={() => setMetadataEditing(true)}
+          onCancel={() => {
+            setMetadataForm({
+              ...DEFAULT_CLIENT_METADATA,
+              ...(client.metadata ?? {}),
+            });
+            setMetadataEditing(false);
+          }}
+          onChange={updateMetadataForm}
+          onSave={handleSaveMetadata}
+        />
 
-          {apolloStatusMessage ? (
-            <div className="px-6 py-8 text-sm text-muted-foreground">
-              {apolloStatusMessage}
-            </div>
-          ) : (
-            <div className="px-6 py-6 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div className="rounded-2xl border border-border bg-muted/10 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Industry</p>
-                  <p className="mt-2 text-lg font-display font-semibold text-foreground">
-                    {apolloSnapshot?.organization?.industry || "—"}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border bg-muted/10 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Employees</p>
-                  <p className="mt-2 text-lg font-display font-semibold text-foreground">
-                    {formatCompactNumber(apolloSnapshot?.organization?.employeeCount)}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border bg-muted/10 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Revenue</p>
-                  <p className="mt-2 text-lg font-display font-semibold text-foreground">
-                    {formatCurrency(apolloSnapshot?.organization?.annualRevenue)}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border bg-muted/10 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">HQ / Domain</p>
-                  <p className="mt-2 text-sm font-semibold text-foreground">
-                    {apolloSnapshot?.organization?.location || apolloSnapshot?.organization?.domain || "—"}
-                  </p>
-                </div>
-              </div>
+        <ApolloAccountSnapshot
+          snapshot={apolloSnapshot}
+          statusMessage={apolloStatusMessage}
+        />
 
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                <div className="rounded-2xl border border-border overflow-hidden">
-                  <div className="px-4 py-3 border-b border-border/50 bg-muted/20 flex items-center gap-2">
-                    <BriefcaseBusiness className="w-4 h-4 text-primary" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">Open Deals</h3>
-                    <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
-                      {apolloSnapshot?.openDeals.length ?? 0}
-                    </span>
-                  </div>
-                  <div className="divide-y divide-border/40">
-                    {(apolloSnapshot?.openDeals.length ?? 0) === 0 && (
-                      <p className="px-4 py-5 text-sm text-muted-foreground">Apollo did not return any open deals for this account.</p>
-                    )}
-                    {apolloSnapshot?.openDeals.map((deal) => (
-                      <div key={deal.id} className="px-4 py-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold text-foreground">{deal.name}</p>
-                          <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-                            {deal.stage}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {formatCurrency(deal.amount)}
-                          {deal.closeDate ? ` · closes ${formatMonthYear(deal.closeDate)}` : ""}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+        <ApolloContactHealthWidget
+          health={apolloContactHealth}
+          entries={contactHealthEntries}
+          loading={apolloContactHealthLoading}
+          error={apolloContactHealthError}
+          contactsMissingEmail={contactsMissingEmail}
+          contactsMissingPhone={contactsMissingPhone}
+          contactsMissingLinkedIn={contactsMissingLinkedIn}
+          enrichableFields={enrichableFields}
+        />
 
-                <div className="rounded-2xl border border-border overflow-hidden">
-                  <div className="px-4 py-3 border-b border-border/50 bg-muted/20 flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-primary" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">Recent Activity</h3>
-                    <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">
-                      {apolloSnapshot?.recentActivity.length ?? 0}
-                    </span>
-                  </div>
-                  <div className="divide-y divide-border/40">
-                    {(apolloSnapshot?.recentActivity.length ?? 0) === 0 && (
-                      <p className="px-4 py-5 text-sm text-muted-foreground">Apollo did not return recent activity for this account.</p>
-                    )}
-                    {apolloSnapshot?.recentActivity.map((entry) => (
-                      <div key={entry.id} className="px-4 py-4">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold text-foreground">{entry.title}</p>
-                          <span className="inline-flex items-center rounded-full border border-border bg-muted/20 px-2 py-0.5 text-[11px] font-bold text-muted-foreground">
-                            {entry.type}
-                          </span>
-                        </div>
-                        {entry.summary && (
-                          <p className="mt-1 text-sm text-muted-foreground leading-relaxed">{entry.summary}</p>
-                        )}
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          {entry.actor ? `${entry.actor} · ` : ""}
-                          {entry.at ? timeAgo(entry.at) : "Timestamp unavailable"}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+        <RelatedTasksWidget
+          tasks={relatedTasks}
+          isProspectView={isProspectView}
+          onAddTask={() => setShowAddTaskModal(true)}
+          onToggleTask={toggleRelatedTask}
+        />
 
-              {(apolloSnapshot?.organization?.keywords.length ?? 0) > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {apolloSnapshot?.organization?.keywords.map((keyword) => (
-                    <span
-                      key={keyword}
-                      className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700"
-                    >
-                      {keyword}
-                    </span>
-                  ))}
-                </div>
-              )}
+        <AccountHistoryWidget history={history} />
 
-              {(apolloSnapshot?.warnings.length ?? 0) > 0 && (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  {apolloSnapshot?.warnings.join(" ")}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Contact Health</h2>
-          </div>
-
-          {apolloContactHealthLoading ? (
-            <div className="px-6 py-8 text-sm text-muted-foreground">Checking Apollo contact coverage...</div>
-          ) : apolloContactHealthError ? (
-            <div className="px-6 py-8 text-sm text-destructive">{apolloContactHealthError}</div>
-          ) : (
-            <div className="px-6 py-6 space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-                <div className="rounded-2xl border border-border bg-muted/10 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Missing Email</p>
-                  <p className="mt-2 text-lg font-display font-semibold text-foreground">{contactsMissingEmail}</p>
-                </div>
-                <div className="rounded-2xl border border-border bg-muted/10 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Missing Phone</p>
-                  <p className="mt-2 text-lg font-display font-semibold text-foreground">{contactsMissingPhone}</p>
-                </div>
-                <div className="rounded-2xl border border-border bg-muted/10 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Missing LinkedIn</p>
-                  <p className="mt-2 text-lg font-display font-semibold text-foreground">{contactsMissingLinkedIn}</p>
-                </div>
-                <div className="rounded-2xl border border-border bg-muted/10 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Apollo Fill Opportunities</p>
-                  <p className="mt-2 text-lg font-display font-semibold text-foreground">{enrichableFields}</p>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-border overflow-hidden">
-                <div className="px-4 py-3 border-b border-border/50 bg-muted/20">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-foreground">Coverage By Contact</h3>
-                </div>
-                <div className="divide-y divide-border/40">
-                  {contactHealthEntries.length === 0 && (
-                    <p className="px-4 py-5 text-sm text-muted-foreground">No contacts are available to score yet.</p>
-                  )}
-                  {contactHealthEntries.map((entry) => (
-                    <div key={`${entry.firstName}-${entry.lastName}-${entry.title}`} className="px-4 py-4">
-                      <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">{entry.firstName} {entry.lastName}</p>
-                          {entry.title && <p className="text-xs text-muted-foreground mt-1">{entry.title}</p>}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          <span className={cn(
-                            "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold",
-                            entry.currentEmail ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
-                          )}>
-                            {entry.currentEmail ? "Email on file" : entry.canImproveEmail ? "Apollo can add email" : "Missing email"}
-                          </span>
-                          <span className={cn(
-                            "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold",
-                            entry.currentPhone ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
-                          )}>
-                            {entry.currentPhone ? "Phone on file" : entry.canImprovePhone ? "Apollo can add phone" : "Missing phone"}
-                          </span>
-                          <span className={cn(
-                            "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold",
-                            entry.currentLinkedIn ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
-                          )}>
-                            {entry.currentLinkedIn ? "LinkedIn on file" : entry.canImproveLinkedIn ? "Apollo can add LinkedIn" : "Missing LinkedIn"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {(apolloContactHealth?.warnings.length ?? 0) > 0 && (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  {apolloContactHealth?.warnings.join(" ")}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── 3. TASKS ───────────────────────────────────────────────── */}
-        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
-          <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <ClipboardList className="w-4 h-4 text-primary" />
-              <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Tasks</h2>
-              <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">{relatedTasks.length}</span>
-            </div>
-            <button
-              onClick={() => setShowAddTaskModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow-sm"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Task
-            </button>
-          </div>
-
-          <div className="divide-y divide-border/40">
-            {relatedTasks.length === 0 && (
-              <p className="px-6 py-8 text-center text-sm text-muted-foreground">
-                No tasks for this {isProspectView ? "prospect" : "client"} yet.
-              </p>
-            )}
-            {relatedTasks.map(task => (
-              <div key={task.id} className="px-6 py-4 flex items-start gap-4 hover:bg-muted/20 transition-colors">
-                <button
-                  onClick={() => toggleRelatedTask(task.id)}
-                  className="mt-0.5 flex-shrink-0 text-muted-foreground hover:text-primary transition-colors"
-                >
-                  {task.completed
-                    ? <CheckCircle2 className="w-5 h-5 text-primary" />
-                    : <Circle className="w-5 h-5" />
-                  }
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border bg-violet-100 text-violet-700 border-violet-200">
-                      {task.taskType}
-                    </span>
-                    <span className={cn(
-                      "inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border capitalize",
-                      task.importance === "HIGH" && "bg-red-100 text-red-700 border-red-200",
-                      task.importance === "MEDIUM" && "bg-amber-100 text-amber-700 border-amber-200",
-                      task.importance === "LOW" && "bg-slate-100 text-slate-500 border-slate-200",
-                    )}>
-                      {task.importance}
-                    </span>
-                    {task.commType === "email" && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border bg-blue-50 text-blue-600 border-blue-200">
-                        <Mail className="w-3 h-3" />
-                        Email
-                      </span>
-                    )}
-                    {task.commType === "phone" && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border bg-emerald-50 text-emerald-600 border-emerald-200">
-                        <Phone className="w-3 h-3" />
-                        Phone
-                      </span>
-                    )}
-                    <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground font-medium">
-                      <Clock className="w-3.5 h-3.5" />
-                      {task.dueDate}
-                    </span>
-                  </div>
-                  <p className={cn(
-                    "text-sm font-semibold leading-snug",
-                    task.completed ? "text-muted-foreground line-through" : "text-foreground",
-                  )}>
-                    {task.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground leading-relaxed mt-1.5">
-                    {task.description}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── 4. ACCOUNT HISTORY ─────────────────────────────────────── */}
-        <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
-          <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center gap-2">
-            <Activity className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">History</h2>
-            <span className="ml-1 text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold">{history.length}</span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto max-h-96">
-            {history.length === 0 && (
-              <p className="px-6 py-8 text-center text-sm text-muted-foreground">No meetings, emails, or calls recorded yet.</p>
-            )}
-            <div className="relative">
-              <div className="absolute left-[2.35rem] top-0 bottom-0 w-px bg-border/60" />
-              {history.map(entry => {
-                const config = HISTORY_STYLES[entry.type];
-                const Icon = config.icon;
-
-                return (
-                  <div key={entry.id} className="flex items-start gap-4 px-5 py-4 relative hover:bg-muted/20 transition-colors">
-                    <div className={cn("w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 z-10 border-2", config.badge)}>
-                      <Icon className="w-2.5 h-2.5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                        <p className="text-sm text-foreground font-medium leading-snug">{entry.subject}</p>
-                        <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide", config.chip)}>
-                          {config.label}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{entry.summary}</p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-2">
-                        <Clock className="w-3 h-3" />
-                        {entry.actor} · {timeAgo(entry.timestamp)}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* ── 5. LINKEDIN UPDATES ────────────────────────────────────── */}
         <LinkedInUpdatesCard
           companyLinkedInUrl={companyLinkedInUrl}
           posts={linkedInPosts}
@@ -1837,485 +1549,20 @@ export default function ClientProfile() {
           emptyMessage="No recent sent Outlook emails matched this client's contact emails."
         />
 
-        {/* ── 6. NOTES + AUDIT LOG (side by side) ────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <NotesWidget />
-          <AuditLogWidget clientId={client.id} />
-        </div>
-      </div>
+          {/* ── 6. NOTES + AUDIT LOG (side by side) ────────────────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <NotesWidget />
+            <AuditLogWidget clientId={client.id} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="reporting" className="mt-0">
+          <ClientReportingStats client={client} />
+        </TabsContent>
+        <TabsContent value="metrics" className="mt-0">
+          <ClientPlacementMetricsWidget client={client} />
+        </TabsContent>
+      </Tabs>
     </AppLayout>
-  );
-}
-
-function ApolloContactsWizard({
-  companyName,
-  candidates,
-  warnings,
-  saving,
-  error,
-  onClose,
-  onToggle,
-  onSave,
-}: {
-  companyName: string;
-  candidates: ApolloContactWizardCandidate[];
-  warnings: string[];
-  saving: boolean;
-  error: string | null;
-  onClose: () => void;
-  onToggle: (dedupeKey: string) => void;
-  onSave: () => void;
-}) {
-  const selectedCount = candidates.filter((candidate) => candidate.selected && !candidate.alreadyExists).length;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[205] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-12 px-4" onClick={onClose}>
-      <div
-        className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border/50">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">Apollo Contact Matches</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{companyName}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
-          {warnings.length > 0 && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              {warnings.join(" ")}
-            </div>
-          )}
-
-          {error && (
-            <div className="rounded-2xl border border-destructive/20 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-              {error}
-            </div>
-          )}
-
-          {candidates.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Apollo did not return any contacts to review.</p>
-          ) : (
-            <div className="space-y-3">
-              {candidates.map((candidate) => (
-                <button
-                  key={candidate.dedupeKey}
-                  type="button"
-                  onClick={() => onToggle(candidate.dedupeKey)}
-                  disabled={candidate.alreadyExists}
-                  className={cn(
-                    "w-full rounded-2xl border p-4 text-left transition-all",
-                    candidate.alreadyExists
-                      ? "border-border bg-muted/20 opacity-70 cursor-not-allowed"
-                      : candidate.selected
-                        ? "border-primary bg-primary/5 shadow-sm"
-                        : "border-border bg-background hover:border-primary/40 hover:bg-primary/5"
-                  )}
-                >
-                  <div className="flex items-start gap-4">
-                    <div className={cn(
-                      "mt-0.5 flex h-5 w-5 items-center justify-center rounded-md border",
-                      candidate.selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-transparent",
-                      candidate.alreadyExists && "border-border bg-muted text-muted-foreground"
-                    )}>
-                      <Check className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-foreground">
-                          {formatApolloContactName(candidate)}
-                        </p>
-                        {candidate.alreadyExists && (
-                          <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
-                            Already added
-                          </span>
-                        )}
-                        {!candidate.alreadyExists && candidate.selected && (
-                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
-                            Selected
-                          </span>
-                        )}
-                        <span className={cn(
-                          "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-                          candidate.emailStatus === "enriched" && "border-blue-200 bg-blue-50 text-blue-700",
-                          candidate.emailStatus === "available" && "border-emerald-200 bg-emerald-50 text-emerald-700",
-                          (!candidate.emailStatus || candidate.emailStatus === "missing") && "border-amber-200 bg-amber-50 text-amber-700"
-                        )}>
-                          {candidate.emailStatus === "enriched"
-                            ? "Email enriched"
-                            : candidate.emailStatus === "available"
-                              ? "Has email"
-                              : "No email"}
-                        </span>
-                      </div>
-                      {candidate.title && (
-                        <p className="mt-1 text-sm text-muted-foreground">{candidate.title}</p>
-                      )}
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {candidate.email && (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-3 py-1.5 text-xs font-medium text-foreground">
-                            <Mail className="w-3.5 h-3.5" />{candidate.email}
-                          </span>
-                        )}
-                        {candidate.phone && (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-3 py-1.5 text-xs font-medium text-foreground">
-                            <Phone className="w-3.5 h-3.5" />{candidate.phone}
-                          </span>
-                        )}
-                        {candidate.linkedIn && (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-3 py-1.5 text-xs font-medium text-foreground">
-                            <LinkedInIcon className="w-3.5 h-3.5 text-[#0A66C2]" />LinkedIn
-                          </span>
-                        )}
-                        {(candidate.city || candidate.state) && (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-3 py-1.5 text-xs font-medium text-foreground">
-                            <MapPin className="w-3.5 h-3.5" />
-                            {[candidate.city, candidate.state].filter(Boolean).join(", ")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-border/50 bg-muted/10">
-          <p className="text-sm text-muted-foreground">{selectedCount} selected</p>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={saving || selectedCount === 0}
-              className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {saving ? "Adding..." : "Add selected"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-function EditContactModal({
-  contact,
-  saving,
-  onChange,
-  onClose,
-  onSave,
-}: {
-  contact: EditableContactForm;
-  saving: boolean;
-  onChange: (contact: EditableContactForm) => void;
-  onClose: () => void;
-  onSave: () => void;
-}) {
-  const isValid = contact.firstName.trim().length > 0;
-
-  function setField(field: keyof EditableContactForm, value: string | boolean) {
-    onChange({
-      ...contact,
-      [field]: value,
-    });
-  }
-
-  return createPortal(
-    <div className="fixed inset-0 z-[210] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 px-4" onClick={onClose}>
-      <div
-        className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border/50">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">Edit Contact</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{formatApolloContactName(contact)}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="px-6 py-5 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <input
-              type="text"
-              placeholder="First Name *"
-              value={contact.firstName}
-              onChange={(e) => setField("firstName", e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-            />
-            <input
-              type="text"
-              placeholder="Last Name"
-              value={contact.lastName}
-              onChange={(e) => setField("lastName", e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <input
-              type="text"
-              placeholder="Job Title"
-              value={contact.title}
-              onChange={(e) => setField("title", e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-            />
-            <input
-              type="email"
-              placeholder="Email Address"
-              value={contact.email}
-              onChange={(e) => setField("email", e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <input
-              type="text"
-              placeholder="Phone Number"
-              value={contact.phone}
-              onChange={(e) => setField("phone", e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-            />
-            <input
-              type="text"
-              placeholder="LinkedIn URL"
-              value={contact.linkedIn}
-              onChange={(e) => setField("linkedIn", e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-            />
-          </div>
-          <label className="inline-flex items-center gap-2 text-sm text-foreground">
-            <input
-              type="checkbox"
-              checked={contact.isPrimary}
-              onChange={(e) => setField("isPrimary", e.target.checked)}
-              className="h-4 w-4 rounded border-border"
-            />
-            Set as primary contact
-          </label>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/50 bg-muted/10">
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={!isValid || saving}
-            className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {saving ? "Saving..." : "Save changes"}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-function DeleteContactConfirmModal({
-  contact,
-  deleting,
-  onClose,
-  onConfirm,
-}: {
-  contact: Contact;
-  deleting: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  return createPortal(
-    <div className="fixed inset-0 z-[210] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-20 px-4" onClick={onClose}>
-      <div
-        className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="px-6 pt-6 pb-4 border-b border-border/50">
-          <h2 className="text-lg font-bold text-foreground">Delete Contact?</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Remove <span className="font-semibold text-foreground">{formatApolloContactName(contact)}</span> from this client profile?
-          </p>
-        </div>
-
-        <div className="px-6 py-5">
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            This will delete the contact record and remove it from the client’s points of contact list.
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/50 bg-muted/10">
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={deleting}
-            className="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {deleting ? "Deleting..." : "Delete contact"}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-function AddTaskModal({
-  companyName,
-  onSave,
-  onClose,
-}: {
-  companyName: string;
-  onSave: (data: { taskType: TaskType; importance: Importance; dueDate: string; notes: string }) => void;
-  onClose: () => void;
-}) {
-  const [taskType, setTaskType] = useState<TaskType>("Follow-Up");
-  const [importance, setImportance] = useState<Importance>("MEDIUM");
-  const [dueDate, setDueDate] = useState<string>(() => {
-    const today = new Date();
-    return new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().slice(0, 10);
-  });
-  const [notes, setNotes] = useState("");
-
-  const isValid = dueDate.trim() !== "" && notes.trim() !== "";
-
-  function handleSave() {
-    if (!isValid) return;
-    onSave({
-      taskType,
-      importance,
-      dueDate,
-      notes: notes.trim(),
-    });
-  }
-
-  return createPortal(
-    <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 px-4" onClick={onClose}>
-      <div
-        className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border/50">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">Create Task</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{companyName}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="px-6 py-5 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Task Type
-              </label>
-              <CustomSelect
-                value={taskType}
-                onChange={value => setTaskType(value as TaskType)}
-                options={(["Prospecting", "Follow-Up", "Training", "Other"] as TaskType[]).map((option) => ({
-                  value: option,
-                  label: option,
-                }))}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Criticality
-              </label>
-              <CustomSelect
-                value={importance}
-                onChange={value => setImportance(value as Importance)}
-                options={ImportanceOptions.map((option) => ({
-                  value: option,
-                  label: option,
-                }))}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-              Due Date
-            </label>
-            <input
-              type="date"
-              value={dueDate}
-              onChange={e => setDueDate(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-              Notes
-            </label>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Add context for the task..."
-              rows={5}
-              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm resize-none focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/50 bg-muted/10">
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!isValid}
-            className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Create Task
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
   );
 }

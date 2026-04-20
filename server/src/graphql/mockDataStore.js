@@ -150,6 +150,13 @@ function createMockDataStore() {
         }
       }
 
+      if (input.metadata !== undefined) {
+        client.metadata = {
+          ...(client.metadata ?? {}),
+          ...input.metadata
+        };
+      }
+
       return mapClient(client);
     },
 

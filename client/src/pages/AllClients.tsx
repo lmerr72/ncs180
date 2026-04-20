@@ -335,6 +335,8 @@ export default function AllClients() {
                     <SortIcon field="unitCount" activeField={sortField} dir={sortDir} />
                   </button>
                 </th>
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-muted/80">Prelegal</th>
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-muted/80">SIF</th>
                 <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 text-center backdrop-blur supports-[backdrop-filter]:bg-muted/80">Assigned Rep</th>
               </tr>
             </thead>
@@ -349,6 +351,7 @@ export default function AllClients() {
                     <td className="px-6 py-4">
                       <Link
                         to={`/clients/${client.id}?from=all-clients`}
+                        state={{ client }}
                         className="font-bold text-foreground text-base hover:text-primary hover:underline transition-colors"
                       >
                         {client.companyName}
@@ -363,6 +366,12 @@ export default function AllClients() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className="font-medium text-foreground">{client.unitCount.toLocaleString()}</span>
+                    </td>
+                    <td className="px-6 py-4 text-left">
+                      <span className="font-medium text-foreground">{client.metadata.prelegal ? 'Yes' : 'No'}</span>
+                    </td>
+                    <td className="px-6 py-4 text-left">
+                    <span className="font-medium text-foreground">{client.metadata.settled_in_full > 0 ? client.metadata.settled_in_full : ''}</span>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center relative group/tooltip">

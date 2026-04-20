@@ -373,6 +373,7 @@ function createPostgresDataStore({ prisma } = {}) {
             state: input.address?.state || null,
             zipCode: input.address?.zipCode || null,
             contactIds: input.contactIds ?? [],
+            metadata: {},
             unitCount: input.unitCount ?? 0,
             onboardingChecklist: {
               create: {}
@@ -412,6 +413,7 @@ function createPostgresDataStore({ prisma } = {}) {
             state: input.address?.state || null,
             zipCode: input.address?.zipCode || null,
             contactIds: input.contactIds ?? [],
+            metadata: {},
             unitCount: input.unitCount ?? 0,
             onboardingChecklist: {
               create: {}
@@ -440,6 +442,10 @@ function createPostgresDataStore({ prisma } = {}) {
 
         const closedProspect = input.prospectStatus === 'CLOSED';
         const suffix = Date.now().toString().slice(-6);
+        const currentMetadata =
+          existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
+            ? existing.metadata
+            : {};
 
         return prismaClient.client.update({
           where: { id },
@@ -447,7 +453,13 @@ function createPostgresDataStore({ prisma } = {}) {
             clientStatus: closedProspect ? 'ONBOARDING' : input.clientStatus ?? undefined,
             prospectStatus: input.prospectStatus ?? undefined,
             clientId: closedProspect ? existing.clientId ?? `CLT-${suffix}` : undefined,
-            createdClientDate: closedProspect ? existing.createdClientDate ?? new Date() : undefined
+            createdClientDate: closedProspect ? existing.createdClientDate ?? new Date() : undefined,
+            metadata: input.metadata !== undefined
+              ? {
+                  ...currentMetadata,
+                  ...input.metadata
+                }
+              : undefined
           }
         });
       });

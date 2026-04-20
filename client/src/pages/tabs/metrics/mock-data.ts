@@ -31,6 +31,60 @@ export const REPS: Record<RepKey, RepInfo> = {
   
   export const TOTAL_INACTIVE = 27;
 
+export const METRICS_YEARS = ["2022", "2023", "2024", "2025", "2026"];
+
+export const SALES_METRICS_BY_YEAR: Record<string, {
+  activeClients: number;
+  inactiveClients: number;
+  yearOverYearChange: number;
+  averageRecoveryRate: string;
+  averageRecoveryRateSubtext: string;
+}> = {
+  "2022": {
+    activeClients: 104,
+    inactiveClients: 19,
+    yearOverYearChange: 16,
+    averageRecoveryRate: "14.8%",
+    averageRecoveryRateSubtext: "Mock recovery average for 2022",
+  },
+  "2023": {
+    activeClients: 119,
+    inactiveClients: 22,
+    yearOverYearChange: 15,
+    averageRecoveryRate: "26.2%",
+    averageRecoveryRateSubtext: "Mock recovery average for 2023",
+  },
+  "2024": {
+    activeClients: 138,
+    inactiveClients: 24,
+    yearOverYearChange: 19,
+    averageRecoveryRate: "18.9%",
+    averageRecoveryRateSubtext: "Mock recovery average for 2024",
+  },
+  "2025": {
+    activeClients: 156,
+    inactiveClients: 27,
+    yearOverYearChange: 18,
+    averageRecoveryRate: "21.3%",
+    averageRecoveryRateSubtext: "Mock recovery average for 2025",
+  },
+  "2026": {
+    activeClients: 163,
+    inactiveClients: 29,
+    yearOverYearChange: 7,
+    averageRecoveryRate: "19.7%",
+    averageRecoveryRateSubtext: "Mock recovery average for 2026",
+  },
+};
+
+export const TAX_CAMPAIGN_PARTICIPATION = [
+  { year: "2022", percentage: 18 },
+  { year: "2023", percentage: 24 },
+  { year: "2024", percentage: 31 },
+  { year: "2025", percentage: 37 },
+  { year: "2026", percentage: 29 },
+];
+
 export function getRepKey(stateName: string): RepKey {
   return STATE_TERRITORIES[stateName] ?? "open";
 }

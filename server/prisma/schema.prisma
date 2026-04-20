@@ -86,6 +86,7 @@ model Client {
   state                       String?
   zipCode                     String?
   contactIds                  String[]
+  metadata                    Json                @default("{}")
   onboardingChecklist         OnboardingChecklist @relation(fields: [onboardingChecklistId], references: [id])
   unitCount                   Int                 @default(0)
   onboardingChecklistId       String
@@ -121,17 +122,17 @@ model AuditLog {
 }
 
 model File {
-  id             String   @id @default(cuid())
-  clientId       String
-  client         Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  assignedRepId  String?
-  assignedRep    User?    @relation(fields: [assignedRepId], references: [id], onDelete: SetNull)
-  placementDate  DateTime
-  collectedDate  DateTime?
-  fileScore      Int
-  attachedFile   Bytes
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            String    @id @default(cuid())
+  clientId      String
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  assignedRepId String?
+  assignedRep   User?     @relation(fields: [assignedRepId], references: [id], onDelete: SetNull)
+  placementDate DateTime
+  collectedDate DateTime?
+  fileScore     Int
+  attachedFile  Bytes
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([clientId, placementDate])
   @@index([assignedRepId])
@@ -139,19 +140,19 @@ model File {
 }
 
 model Task {
-  id          String          @id @default(cuid())
+  id          String        @id @default(cuid())
   clientId    String?
-  client      Client?         @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  client      Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
   repId       String
   title       String
   description String
   taskType    TaskType
   importance  Importance
   dueDate     DateTime
-  completed   Boolean         @default(false)
+  completed   Boolean       @default(false)
   commType    TaskCommType?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   @@index([repId, dueDate])
   @@index([clientId])
