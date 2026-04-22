@@ -8,8 +8,8 @@ import { ModalContainer } from "@/components/shared/ModalContainer";
 import CustomSelect from "@/components/shared/CustomSelect";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { MOCK_CLIENT_REPS } from "@/data/mock_client_reps";
-import {getInitials} from '@/helpers/formatters'
+import { MOCK_CLIENT_REP_AVATAR_COLORS, MOCK_CLIENT_REPS } from "@/data/mock_client_reps";
+import { getInitials } from "@/helpers/formatters";
 import { getClients } from "@/services/clientService";
 import type { Client } from "@/types/api";
 
@@ -331,9 +331,11 @@ export default function AllClients() {
             </thead>
             <tbody className="divide-y divide-border/50">
               {filteredClients.map((client) => {
-                const rep = MOCK_CLIENT_REPS.find(rep=> rep.id === client.assignedRepId)
-                const repInitials = getInitials(rep.firstName,rep.lastName)
-                const avatarColorClass = getAvatarColor(repInitials);
+                const rep = MOCK_CLIENT_REPS.find((candidate) => candidate.id === client.assignedRepId);
+                const repInitials = rep ? getInitials(rep.firstName, rep.lastName) : "?";
+                const avatarColorClass = rep
+                  ? MOCK_CLIENT_REP_AVATAR_COLORS[rep.id] ?? getAvatarColor(rep.id)
+                  : getAvatarColor(client.id);
 
                 return (
                   <tr key={client.id} className="hover:bg-muted/20 transition-colors group">
@@ -370,12 +372,14 @@ export default function AllClients() {
                         >
                           {repInitials}
                         </Link>
-                        <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10">
-                          <div className="bg-foreground text-background text-xs font-semibold px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl">
-                            {rep.firstName} {rep.lastName}
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-foreground"></div>
+                        {rep && (
+                          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-10">
+                            <div className="bg-foreground text-background text-xs font-semibold px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl">
+                              {rep.firstName} {rep.lastName}
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-foreground"></div>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     </td>
                   </tr>

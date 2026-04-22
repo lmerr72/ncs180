@@ -1,5 +1,18 @@
 import type { ClientRep } from "@/types/api";
 
+export const MOCK_CLIENT_REP_AVATAR_COLORS: Record<string, string> = {
+  "client-rep-001": "bg-red-100 text-red-700 border-red-200",
+  "client-rep-002": "bg-orange-100 text-orange-700 border-orange-200",
+  "client-rep-003": "bg-amber-100 text-amber-700 border-amber-200",
+  "client-rep-004": "bg-green-100 text-green-700 border-green-200",
+  "client-rep-005": "bg-emerald-100 text-emerald-700 border-emerald-200",
+  "client-rep-006": "bg-teal-100 text-teal-700 border-teal-200",
+  "client-rep-007": "bg-cyan-100 text-cyan-700 border-cyan-200",
+  "client-rep-008": "bg-sky-100 text-sky-700 border-sky-200",
+  "client-rep-009": "bg-blue-100 text-blue-700 border-blue-200",
+  "client-rep-010": "bg-indigo-100 text-indigo-700 border-indigo-200",
+};
+
 export const MOCK_CLIENT_REPS: ClientRep[] = [
   {
     "id": "client-rep-001",

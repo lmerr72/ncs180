@@ -106,7 +106,7 @@ const clients = [
       id: 'all-4',
       clientId: 'CLT-1004', // low placement high recovery
       companyName: 'Dreamscape Residential Housing',
-      assignedRepId: 'client-rep-005',
+      assignedRepId: 'client-rep-007',
       createdDate: '2022-09-12',
       createdClientDate: '2022-09-12',
       activeClientDate: null,
@@ -137,7 +137,7 @@ const clients = [
         id: 'all-5',
         clientId: 'CLT-1005', // high placement high recovery / aggressive
         companyName: 'Everclear Properties',
-        assignedRepId: 'client-rep-005',
+        assignedRepId: 'client-rep-007',
         createdDate: '2022-09-12',
         createdClientDate: '2022-09-12',
         activeClientDate: '2022-09-12',
