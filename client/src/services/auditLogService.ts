@@ -31,8 +31,8 @@ type CreateAuditLogEntryMutationVariables = {
   input: {
     clientId: string;
     action: string;
-    author: string;
-    repId: string;
+    author?: string;
+    repId?: string;
     timestamp?: string;
     type: AuditEntry["type"];
   };
@@ -80,7 +80,13 @@ function normalizeAuditEntry(entry: GraphqlAuditEntry): AuditEntry {
   };
 }
 
-function getLoggedInRepId(): string | null {
+type StoredAuditUser = {
+  firstName?: string | null;
+  lastName?: string | null;
+  repId?: string | null;
+};
+
+function getLoggedInAuditUser(): StoredAuditUser | null {
   if (typeof window === "undefined") {
     return null;
   }
@@ -91,8 +97,8 @@ function getLoggedInRepId(): string | null {
       return null;
     }
 
-    const parsed = JSON.parse(stored) as { repId?: string | null } | null;
-    return parsed?.repId?.trim() || null;
+    const parsed = JSON.parse(stored) as StoredAuditUser | null;
+    return parsed;
   } catch {
     return null;
   }
@@ -121,7 +127,13 @@ export async function getAuditLogEntries(
 export async function createAuditLogEntry(
   input: CreateAuditLogEntryMutationVariables["input"]
 ): Promise<AuditEntry> {
-  const repId = getLoggedInRepId() ?? input.repId;
+  const loggedInUser = getLoggedInAuditUser();
+  const repId = loggedInUser?.repId?.trim() || input.repId || "";
+  const authorName = [loggedInUser?.firstName?.trim(), loggedInUser?.lastName?.trim()]
+    .filter(Boolean)
+    .join(" ");
+  const author = authorName || input.author || "System";
+
   const response = await apolloClient.mutate<
     CreateAuditLogEntryMutationData,
     CreateAuditLogEntryMutationVariables
@@ -130,6 +142,7 @@ export async function createAuditLogEntry(
     variables: {
       input: {
         ...input,
+        author,
         repId
       }
     }

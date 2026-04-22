@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Building, Building2, Filter, Search, Globe, Users, ArrowUpDown, ArrowUp, ArrowDown, Plus, X } from "lucide-react";
+import { Building, Building2, Filter, Search, Globe, Users, ArrowUpDown, ArrowUp, ArrowDown, Plus, X, AlertCircle } from "lucide-react";
 import { cn, getAvatarColor } from "@/lib/utils";
 import { AddClientWizard } from "@/components/AddClientWizard";
 import { ModalContainer } from "@/components/shared/ModalContainer";
@@ -9,7 +9,7 @@ import CustomSelect from "@/components/shared/CustomSelect";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
 import { MOCK_CLIENT_REP_AVATAR_COLORS, MOCK_CLIENT_REPS } from "@/data/mock_client_reps";
-import { getInitials } from "@/helpers/formatters";
+import { dateIsXDaysAgo, getInitials } from "@/helpers/formatters";
 import { getClients } from "@/services/clientService";
 import type { Client } from "@/types/api";
 
@@ -19,12 +19,16 @@ type AdvancedFilters = {
   repId: string;
   state: string;
   minUnitsThousands: number | null;
+  prelegal: "all" | "yes" | "no";
+  settledInFull: "all" | "active" | "inactive";
 };
 
 const DEFAULT_FILTERS: AdvancedFilters = {
   repId: "all",
   state: "all",
   minUnitsThousands: null,
+  prelegal: "all",
+  settledInFull: "all",
 };
 
 function nextSort(field: SortField, currentField: SortField, currentDir: SortDir): { field: SortField; dir: SortDir } {
@@ -38,6 +42,15 @@ function SortIcon({ field, activeField, dir }: { field: SortField; activeField: 
   return dir === "asc"
     ? <ArrowUp className="w-3.5 h-3.5 text-primary" />
     : <ArrowDown className="w-3.5 h-3.5 text-primary" />;
+}
+
+function formatMonthYear(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "—";
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(2);
+  return `${mm}/${yy}`;
 }
 
 export default function AllClients() {
@@ -86,7 +99,14 @@ export default function AllClients() {
       c.clientId.toLowerCase().includes(searchTerm.toLowerCase())) &&
     (advancedFilters.repId === "all" || c.assignedRepId === advancedFilters.repId) &&
     (advancedFilters.state === "all" || c.address.state === advancedFilters.state) &&
-    (advancedFilters.minUnitsThousands === null || c.unitCount >= advancedFilters.minUnitsThousands * 1000)
+    (advancedFilters.minUnitsThousands === null || c.unitCount >= advancedFilters.minUnitsThousands * 1000) &&
+    (advancedFilters.prelegal === "all" || c.metadata.prelegal === (advancedFilters.prelegal === "yes")) &&
+    (
+      advancedFilters.settledInFull === "all" ||
+      (advancedFilters.settledInFull === "active"
+        ? c.metadata.settled_in_full > 0
+        : c.metadata.settled_in_full <= 0)
+    )
   );
 
   const filteredClients = [...filtered].sort((a, b) => {
@@ -147,6 +167,18 @@ export default function AllClients() {
           label: `Min Units: ${advancedFilters.minUnitsThousands.toLocaleString()}k`,
         }
       : null,
+    advancedFilters.prelegal !== "all"
+      ? {
+          key: "prelegal" as const,
+          label: `Prelegal: ${advancedFilters.prelegal === "yes" ? "Yes" : "No"}`,
+        }
+      : null,
+    advancedFilters.settledInFull !== "all"
+      ? {
+          key: "settledInFull" as const,
+          label: `SIF: ${advancedFilters.settledInFull === "active" ? "Active" : "Inactive"}`,
+        }
+      : null,
   ].filter((filter): filter is { key: keyof AdvancedFilters; label: string } => Boolean(filter));
 
   const stats = [
@@ -162,21 +194,21 @@ export default function AllClients() {
         <DialogContent className="sm:max-w-xl border-none bg-transparent p-0 shadow-none [&>button]:hidden">
           <ModalContainer
             title="Advanced Filters"
-            description="Narrow the client list by sales rep, operating state, and minimum unit count."
+            description="Narrow the client list by assigned rep, operating state, minimum unit count, prelegal status, and settled-in-full activity."
             onClose={() => setShowAdvancedFilter(false)}
             primaryAction={{ label: "Save Filters", onClick: applyAdvancedFilters }}
             secondaryAction={{ label: "Reset", onClick: resetAdvancedFilters }}
             titleClassName="text-2xl"
             bodyClassName="space-y-6 pt-0"
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-foreground">Sales Rep</label>
+                <label className="text-sm font-semibold text-foreground">Assigned Rep</label>
                 <CustomSelect
                   value={draftFilters.repId}
                   onChange={(value) => setDraftFilters((current) => ({ ...current, repId: value }))}
                   options={[
-                    { value: "all", label: "All sales reps" },
+                    { value: "all", label: "All assigned reps" },
                     ...MOCK_CLIENT_REPS.map((rep) => ({
                       value: rep.id,
                       label: `${rep.firstName} ${rep.lastName}`,
@@ -200,6 +232,36 @@ export default function AllClients() {
                     })),
                   ]}
                   placeholder="All states"
+                  className="bg-card"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">Prelegal</label>
+                <CustomSelect
+                  value={draftFilters.prelegal}
+                  onChange={(value) => setDraftFilters((current) => ({ ...current, prelegal: value as AdvancedFilters["prelegal"] }))}
+                  options={[
+                    { value: "all", label: "All values" },
+                    { value: "yes", label: "Yes" },
+                    { value: "no", label: "No" },
+                  ]}
+                  placeholder="All values"
+                  className="bg-card"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-foreground">Settled In Full</label>
+                <CustomSelect
+                  value={draftFilters.settledInFull}
+                  onChange={(value) => setDraftFilters((current) => ({ ...current, settledInFull: value as AdvancedFilters["settledInFull"] }))}
+                  options={[
+                    { value: "all", label: "All statuses" },
+                    { value: "active", label: "Active" },
+                    { value: "inactive", label: "Inactive" },
+                  ]}
+                  placeholder="All statuses"
                   className="bg-card"
                 />
               </div>
@@ -288,20 +350,18 @@ export default function AllClients() {
         {activeFilterLabels.length > 0 && (
           <div className="px-4 py-3 border-b border-border/50 flex flex-wrap items-center gap-2 bg-background">
             {activeFilterLabels.map((filter) => (
-              <span
+              <button
+                type="button"
                 key={filter.key}
-                className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
+                onClick={() => clearSavedFilter(filter.key)}
+                className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/15"
+                aria-label={`Remove ${filter.label} filter`}
               >
                 {filter.label}
-                <button
-                  type="button"
-                  onClick={() => clearSavedFilter(filter.key)}
-                  className="ml-2 inline-flex h-4 w-4 items-center justify-center rounded-full text-primary/70 transition-colors hover:bg-primary/15 hover:text-primary"
-                  aria-label={`Remove ${filter.label} filter`}
-                >
+                <span className="inline-flex h-4 w-4 items-center justify-center rounded-full text-primary/70">
                   <X className="h-3 w-3" />
-                </button>
-              </span>
+                </span>
+              </button>
             ))}
           </div>
         )}
@@ -326,11 +386,13 @@ export default function AllClients() {
                 </th>
                 <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-muted/80">Prelegal</th>
                 <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-muted/80">SIF</th>
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-muted/80">Last Placement</th>
                 <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 text-center backdrop-blur supports-[backdrop-filter]:bg-muted/80">Assigned Rep</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {filteredClients.map((client) => {
+                const stale = dateIsXDaysAgo(client.mostRecentFilePlacementDate);
                 const rep = MOCK_CLIENT_REPS.find((candidate) => candidate.id === client.assignedRepId);
                 const repInitials = rep ? getInitials(rep.firstName, rep.lastName) : "?";
                 const avatarColorClass = rep
@@ -359,10 +421,19 @@ export default function AllClients() {
                       <span className="font-medium text-foreground">{client.unitCount.toLocaleString()}</span>
                     </td>
                     <td className="px-6 py-4 text-left">
-                      <span className="font-medium text-foreground">{client.metadata.prelegal ? 'Yes' : 'No'}</span>
+                      <span className="font-medium text-foreground">{client.metadata.prelegal ? 'Yes' : ''}</span>
                     </td>
                     <td className="px-6 py-4 text-left">
                     <span className="font-medium text-foreground">{client.metadata.settled_in_full > 0 ? client.metadata.settled_in_full : ''}</span>
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex items-center gap-1.5">
+                        
+                        <span className={cn("font-medium", stale ? "text-amber-700" : "text-muted-foreground")}>
+                          {formatMonthYear(client.mostRecentFilePlacementDate)}
+                        </span>
+                        {stale && <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center relative group/tooltip">
@@ -387,7 +458,7 @@ export default function AllClients() {
               })}
               {filteredClients.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground">No clients found.</td>
+                  <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground">No clients found.</td>
                 </tr>
               )}
             </tbody>

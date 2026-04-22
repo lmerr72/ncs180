@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@apollo/client/react";
+import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { MOCK_CLIENT_REPS } from "@/data/mock_client_reps";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -9,9 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { MapPin, Clock, Mail, ArrowLeft, ShieldCheck, Filter } from "lucide-react";
 import { cn, getAvatarColor } from "@/lib/utils";
-import type { Client, UserProfile } from "@/types/api";
-import { getClients } from "@/services/clientService";
-import { getUsersContext } from "@/services/userService";
+import { normalizeClient } from "@/services/clientService";
+import { SALES_REP_PROFILE_QUERY, type SalesRepProfileQueryData } from "@/services/salesRepProfileService";
 import { ModalContainer } from "@/components/shared/ModalContainer";
 
 type RepAccountRow = {
@@ -44,38 +43,42 @@ const STATUS_STYLES: Record<RepAccountRow["status"], string> = {
 export default function SalesRepProfile() {
   const params = useParams();
   const [searchParams] = useSearchParams();
-  const [allClients, setAllClients] = useState<Client[]>([]);
-  const [reps, setReps] = useState<UserProfile[]>([]);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showInactiveClients, setShowInactiveClients] = useState(false);
   const [draftShowInactiveClients, setDraftShowInactiveClients] = useState(false);
   const fromParam = searchParams.get("from");
+  const { data, loading, error } = useQuery<SalesRepProfileQueryData>(SALES_REP_PROFILE_QUERY, {
+    skip: !params.id,
+  });
+  const allClients = data?.allClients.map(normalizeClient) ?? [];
+  const rep = data?.users.find((entry) => entry.id === params.id) ?? null;
 
-  useEffect(() => {
-    let ignore = false;
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <p className="text-2xl font-bold text-foreground">Loading rep profile...</p>
+          <Link to="/clients" className="text-primary hover:underline text-sm font-medium">
+            ← Back to Clients
+          </Link>
+        </div>
+      </AppLayout>
+    );
+  }
 
-    async function loadData() {
-      const [clients, usersData] = await Promise.all([
-        getClients(),
-        getUsersContext(),
-      ]);
-
-      if (!ignore) {
-        setAllClients(clients);
-        setReps(usersData.users);
-      }
-    }
-
-    void loadData();
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  const rep = reps.find((entry) => entry.id === params.id)
-    ?? MOCK_CLIENT_REPS.find((entry) => entry.id === params.id)
-    ?? null;
+  if (error) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <p className="text-2xl font-bold text-foreground">Unable to load rep profile</p>
+          <p className="text-sm text-muted-foreground">{error.message}</p>
+          <Link to="/clients" className="text-primary hover:underline text-sm font-medium">
+            ← Back to Clients
+          </Link>
+        </div>
+      </AppLayout>
+    );
+  }
 
   if (!rep) {
     return (
@@ -104,7 +107,7 @@ export default function SalesRepProfile() {
       companyName: client.companyName,
       unitCount: client.unitCount,
       totalPlacements: client.totalPlacements ?? 0,
-      status: client.clientStatus === "prospecting" ? "prospecting" : getClientStatus(client.lastPlacementDate ?? null),
+      status: client.clientStatus === "prospecting" ? "prospecting" : getClientStatus(client.mostRecentFilePlacementDate ?? null),
       href: `/clients/${client.id}?from=rep/${rep.id}`,
     }));
   const visibleRows = [...clientRows]
@@ -246,7 +249,7 @@ export default function SalesRepProfile() {
         <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
           <div className="flex items-center justify-between gap-4 border-b border-border/50 bg-muted/20 px-6 py-4">
             <div>
-              <h2 className="text-lg font-display font-bold text-foreground">Prospects And Clients</h2>
+              <h2 className="text-lg font-display font-bold text-foreground">Prospects and Clients</h2>
               <p className="text-sm text-muted-foreground mt-1">
                 Accounts assigned to {rep.firstName} {rep.lastName}.
                 {!showInactiveClients && hiddenInactiveCount > 0 ? ` ${hiddenInactiveCount} inactive client${hiddenInactiveCount === 1 ? "" : "s"} hidden.` : ""}

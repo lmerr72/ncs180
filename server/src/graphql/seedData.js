@@ -19,7 +19,8 @@ const users = [
     email: 'gmarshall@ncs180.com',
     title: 'Senior Sales Representative',
     role: 'sales_rep',
-    initials: 'GM'
+    initials: 'GM',
+    timezone:'Mountain'
   },
   {
     id: 'client-rep-003',
@@ -64,7 +65,8 @@ const users = [
     email: 'kristen.m@ncs180.com',
     title: 'Senior Sales Representative',
     role: 'sales_rep',
-    initials: 'KM'
+    initials: 'KM',
+    timezone: 'Central'
   },
   {
     id: 'client-rep-008',

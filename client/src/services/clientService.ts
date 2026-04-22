@@ -378,7 +378,7 @@ export async function getProspectClients(): Promise<Client[]> {
   );
 }
 
-export async function createClient(input: CreateClientServiceInput, author:string, repId: string): Promise<Client> {
+export async function createClient(input: CreateClientServiceInput): Promise<Client> {
   const response = await apolloClient.mutate<ClientMutationData, ClientMutationVariables>({
     mutation: CREATE_CLIENT_MUTATION,
     variables: {
@@ -395,15 +395,13 @@ export async function createClient(input: CreateClientServiceInput, author:strin
   await createAuditLogEntry({
     clientId: client.id,
     action: "Created client",
-    author: author,
-    repId: repId,
     type: "create"
   });
 
   return client;
 }
 
-export async function createProspect(input: CreateProspectServiceInput, author: string, repId: string): Promise<Client> {
+export async function createProspect(input: CreateProspectServiceInput): Promise<Client> {
   const response = await apolloClient.mutate<ClientMutationData, ClientMutationVariables>({
     mutation: CREATE_PROSPECT_MUTATION,
     variables: {
@@ -420,8 +418,6 @@ export async function createProspect(input: CreateProspectServiceInput, author: 
   await createAuditLogEntry({
     clientId: client.id,
     action: "Created prospect",
-    author: author,
-    repId: repId,
     type: "create"
   });
 
@@ -431,7 +427,6 @@ export async function createProspect(input: CreateProspectServiceInput, author: 
 export async function updateClient(
   id: string,
   input: UpdateClientMutationVariables["input"],
-  repId: string,
   auditMessage: string,
 ): Promise<Client> {
   const response = await apolloClient.mutate<UpdateClientMutationData, UpdateClientMutationVariables>({
@@ -450,8 +445,6 @@ export async function updateClient(
   await createAuditLogEntry({
     clientId: updatedClient.id,
     action: auditMessage,
-    author: repId,
-    repId,
     type: "update"
   });
 

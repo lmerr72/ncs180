@@ -202,21 +202,23 @@ export default function Pipeline() {
                 <tr className="bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground font-semibold border-b border-border/50">
                   <th className="sticky top-0 z-10 bg-muted/95 px-5 py-3.5 backdrop-blur supports-[backdrop-filter]:bg-muted/80">
                     <button onClick={() => handleSort("companyName")} className="flex items-center gap-1.5 hover:text-foreground transition-colors">
-                      Company
+                      COMPANY
                       <SortIcon field="companyName" activeField={sortField} dir={sortDir} />
                     </button>
                   </th>
-                  <th className="sticky top-0 z-10 bg-muted/95 px-5 py-3.5 backdrop-blur supports-[backdrop-filter]:bg-muted/80">Location</th>
+                  <th className="sticky top-0 z-10 bg-muted/95 px-5 py-3.5 backdrop-blur supports-[backdrop-filter]:bg-muted/80">LOCATION</th>
                   <th className="sticky top-0 z-10 bg-muted/95 px-5 py-3.5 text-right backdrop-blur supports-[backdrop-filter]:bg-muted/80">
                     <button onClick={() => handleSort("unitCount")} className="ml-auto flex items-center gap-1.5 hover:text-foreground transition-colors">
-                      Units
+                      UNITS
                       <SortIcon field="unitCount" activeField={sortField} dir={sortDir} />
                     </button>
                   </th>
-                  <th className="sticky top-0 z-10 bg-muted/95 px-5 py-3.5 backdrop-blur supports-[backdrop-filter]:bg-muted/80"><button onClick={() => handleSort("prospectStatus")} className="ml-auto flex items-center gap-1.5 hover:text-foreground transition-colors">
-                      Status
+                  <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 text-left backdrop-blur supports-[backdrop-filter]:bg-muted/80">
+                    <button onClick={() => handleSort("prospectStatus")} className="flex items-center text-left gap-1.5 hover:text-foreground transition-colors">
+                      STATUS
                       <SortIcon field="unitCount" activeField={sortField} dir={sortDir} />
-                    </button></th>
+                    </button>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">

@@ -8,11 +8,15 @@ import { useEffect, useState } from "react";
 
 const logger = createBrowserLogger("AuditLogWidget");
 
-export default function AuditLogWidget({ clientId }: { clientId: string }) {
+type AuditLogWidgetProps = {
+  clientId: string;
+  refreshKey?: number;
+};
+
+export default function AuditLogWidget({ clientId, refreshKey = 0 }: AuditLogWidgetProps) {
     const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
 
     useEffect(() => {
-
       async function loadAuditLog() {
         try {
           if (clientId)   {
@@ -26,7 +30,7 @@ export default function AuditLogWidget({ clientId }: { clientId: string }) {
       }
 
       void loadAuditLog();
-    }, [clientId]);
+    }, [clientId, refreshKey]);
 
     return(  <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
         <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center gap-2">

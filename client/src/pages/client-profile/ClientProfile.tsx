@@ -118,6 +118,61 @@ function formatMetadataAuditValue(field: keyof ClientMetadata, value: ClientMeta
   return String(value);
 }
 
+type ClientInformationAddressInput = {
+  address1: string;
+  address2: string;
+  city: string;
+  state: string;
+  zipCode: string;
+};
+
+const CLIENT_INFORMATION_ADDRESS_FIELDS: Array<keyof ClientInformationAddressInput> = [
+  "address1",
+  "address2",
+  "city",
+  "state",
+  "zipCode",
+];
+
+function formatClientInformationAuditValue(value: number | string) {
+  if (typeof value === "number") {
+    return value.toLocaleString();
+  }
+
+  return value.length > 0 ? value : "(empty)";
+}
+
+function buildClientInformationAuditMessage(client: Client, nextUnitCount: number, nextAddress: ClientInformationAddressInput) {
+  const currentAddress: ClientInformationAddressInput = {
+    address1: client.address?.address1 ?? "",
+    address2: client.address?.address2 ?? "",
+    city: client.address?.city ?? "",
+    state: client.address?.state ?? "",
+    zipCode: client.address?.zipCode ?? "",
+  };
+  const changes: string[] = [];
+
+  if (client.unitCount !== nextUnitCount) {
+    changes.push(
+      `unitCount from ${formatClientInformationAuditValue(client.unitCount)} to ${formatClientInformationAuditValue(nextUnitCount)}`
+    );
+  }
+
+  CLIENT_INFORMATION_ADDRESS_FIELDS.forEach((field) => {
+    if (currentAddress[field] !== nextAddress[field]) {
+      changes.push(
+        `${field} from ${formatClientInformationAuditValue(currentAddress[field])} to ${formatClientInformationAuditValue(nextAddress[field])}`
+      );
+    }
+  });
+
+  if (changes.length === 0) {
+    return null;
+  }
+
+  return `Client information updated: ${changes.join("; ")}`;
+}
+
 const PROSPECT_STATUS_CONFIG: Record<Exclude<ProspectStatus, "inactive">, { badge: string; dot: string }> = {
   not_started:      { badge: "bg-slate-100 text-slate-700 border border-slate-200",           dot: "bg-slate-500" },
   in_communication: { badge: "bg-sky-100 text-sky-700 border border-sky-200",                 dot: "bg-sky-500" },
@@ -288,6 +343,7 @@ export default function ClientProfile() {
   });
   const [metadataSaving, setMetadataSaving] = useState(false);
   const [metadataEditing, setMetadataEditing] = useState(false);
+  const [auditLogRefreshKey, setAuditLogRefreshKey] = useState(0);
   const [clientInformationForm, setClientInformationForm] = useState<EditableClientInformationForm>(
     createClientInformationForm(client)
   );
@@ -478,7 +534,6 @@ export default function ClientProfile() {
       const response = await updateClient(
         client.id,
         { metadata: nextMetadata },
-        user?.repId ?? "",
         auditMessage
       );
       const savedMetadata = response.metadata ?? nextMetadata;
@@ -505,31 +560,16 @@ export default function ClientProfile() {
     if (!client?.id || clientInformationSaving) return;
 
     const nextUnitCount = Math.max(0, Number.parseInt(clientInformationForm.unitCount, 10) || 0);
-    const nextAddress = {
+    const nextAddress: ClientInformationAddressInput = {
       address1: clientInformationForm.address1.trim(),
       address2: clientInformationForm.address2.trim(),
       city: clientInformationForm.city.trim(),
       state: clientInformationForm.state.trim(),
       zipCode: clientInformationForm.zipCode.trim(),
     };
-    const currentAddress = {
-      address1: client.address?.address1 ?? "",
-      address2: client.address?.address2 ?? "",
-      city: client.address?.city ?? "",
-      state: client.address?.state ?? "",
-      zipCode: client.address?.zipCode ?? "",
-    };
-    const changes: string[] = [];
+    const auditMessage = buildClientInformationAuditMessage(client, nextUnitCount, nextAddress);
 
-    if (client.unitCount !== nextUnitCount) {
-      changes.push(`unit count from ${client.unitCount.toLocaleString()} to ${nextUnitCount.toLocaleString()}`);
-    }
-
-    if (JSON.stringify(currentAddress) !== JSON.stringify(nextAddress)) {
-      changes.push("full address updated");
-    }
-
-    if (changes.length === 0) {
+    if (!auditMessage) {
       setShowClientInformationModal(false);
       return;
     }
@@ -543,8 +583,7 @@ export default function ClientProfile() {
           unitCount: nextUnitCount,
           address: nextAddress,
         },
-        user?.repId ?? "",
-        `Client information updated: ${changes.join("; ")}`
+        auditMessage
       );
 
       setClient(updatedClient);
@@ -552,6 +591,7 @@ export default function ClientProfile() {
         current.map((entry) => entry.id === updatedClient.id ? { ...entry, ...updatedClient } : entry)
       );
       setClientInformationForm(createClientInformationForm(updatedClient));
+      setAuditLogRefreshKey((current) => current + 1);
       setShowClientInformationModal(false);
       showToast("Client information updated");
     } catch (error) {
@@ -795,8 +835,7 @@ export default function ClientProfile() {
           phone: newContact.phone.trim() || undefined,
           linkedIn: newContact.linkedIn.trim() || undefined,
           isPrimary: contacts.length === 0
-        },
-        user?.repId ?? "unknown-rep"
+        }
       );
 
       const contact: Contact = {
@@ -931,8 +970,7 @@ export default function ClientProfile() {
           phone: candidate.phone.trim() || undefined,
           linkedIn: candidate.linkedIn.trim() || undefined,
           isPrimary: false,
-        })),
-        user?.repId ?? "unknown-rep"
+        }))
       );
 
       const nextContacts = createdContacts.map((created) => ({
@@ -991,8 +1029,7 @@ export default function ClientProfile() {
           linkedIn: editingContact.linkedIn.trim() || undefined,
           isPrimary: editingContact.isPrimary,
         },
-        client?.id ?? "",
-        user?.repId ?? "unknown-rep"
+        client?.id ?? ""
       );
 
       setContacts((prev) =>
@@ -1042,7 +1079,7 @@ export default function ClientProfile() {
     setContactError(null);
 
     try {
-      await deleteContact(contact.id, client?.id ?? "", user?.repId ?? "unknown-rep");
+      await deleteContact(contact.id, client?.id ?? "");
 
       setContacts((prev) => prev.filter((entry) => entry.id !== contact.id));
       showToast("Contact removed");
@@ -1141,7 +1178,6 @@ export default function ClientProfile() {
           {
             prospectStatus: toProspectStatusEnum(nextStatus),
           },
-          user?.repId ?? null,
           "Prospect status updated to closed"
         );
         logger.info("Updated prospect status to closed", { clientId: client.id });
@@ -1154,7 +1190,6 @@ export default function ClientProfile() {
             prospectStatus: toProspectStatusEnum(nextStatus),
             createdClientDate: new Date()
           },
-          user?.repId ?? null,
           "Prospect moved to onboarding"
         );
         logger.info("Moved prospect to onboarding", { clientId: client.id });
@@ -1167,7 +1202,6 @@ export default function ClientProfile() {
           {
             prospectStatus: toProspectStatusEnum(nextStatus),
           },
-          user?.repId ?? null,
           `Prospect status changed from ${client.prospectStatus} to ${nextStatus}`
         );
       }
@@ -1431,24 +1465,10 @@ export default function ClientProfile() {
         {/* Divider */}
         <div className="w-px h-6 bg-border" />
 
-        {/* Status button */}
-        <button
-          onClick={() => setShowStatusModal(true)}
-          disabled={isPipelineStatus(client.clientStatus, client.prospectStatus)}
-          className={cn(
-            "group inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all shadow-sm hover:shadow-md",
-            statusCfg.badge,
-            "hover:ring-2 hover:ring-offset-1",
-            statusCfg.ring,
-          )}
-        >
-          <span className={cn("w-2 h-2 rounded-full flex-shrink-0 animate-pulse", statusCfg.dot)} />
-          <StatusIcon className="w-3.5 h-3.5 flex-shrink-0" />
-          {statusCfg.label}
-          <ChevronDown className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
-        </button>
+       
 
-        {isPipelineStatus(status, prospectStatus) && (
+        {isPipelineStatus(status, prospectStatus) ?  
+        (
           <div className="relative" ref={prospectStatusDropdownRef}>
             <button
               onClick={() => !prospectStatusSaving && setShowProspectStatusDropdown((value) => !value)}
@@ -1499,7 +1519,21 @@ export default function ClientProfile() {
               </div>
             )}
           </div>
+        ):<button
+        onClick={() => setShowStatusModal(true)}
+        disabled={isPipelineStatus(client.clientStatus, client.prospectStatus)}
+        className={cn(
+          "group inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all shadow-sm hover:shadow-md",
+          statusCfg.badge,
+          "hover:ring-2 hover:ring-offset-1",
+          statusCfg.ring,
         )}
+      >
+        <span className={cn("w-2 h-2 rounded-full flex-shrink-0 animate-pulse", statusCfg.dot)} />
+        <StatusIcon className="w-3.5 h-3.5 flex-shrink-0" />
+        {statusCfg.label}
+        <ChevronDown className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
+      </button>}
 
         {repPending && (
           <span className="text-xs text-amber-600 font-medium flex items-center gap-1">
@@ -1810,7 +1844,7 @@ export default function ClientProfile() {
           {/* ── 6. NOTES + AUDIT LOG (side by side) ────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <AccountHistoryWidget history={history} />
-            <AuditLogWidget clientId={client.id} />
+            <AuditLogWidget clientId={client.id} refreshKey={auditLogRefreshKey} />
           </div>
         </TabsContent>
 

@@ -1,17 +1,35 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Users, Building, Building2, TrendingUp, Filter, Search, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Compass, Sparkles, ExternalLink, RefreshCw } from "lucide-react";
+import { Users, Building, Building2, TrendingUp, Filter, Search, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, Compass, Sparkles, ExternalLink, RefreshCw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DetailCard } from "@/components/shared/DetailCard";
 import { Client, UserProfile } from "@/types/api";
-import { daysFromToday } from "@/helpers/formatters";
+import { dateIsXDaysAgo } from "@/helpers/formatters";
 import { MOCK_CLIENT_REPS } from "@/data/mock_client_reps";
 import { useAuth } from "@/context/AuthContext";
 import { getClients, getRepClients } from "@/services/clientService";
+import { MyClientsFilterModal, type MyClientsFilters } from "./MyClientsFilterModal";
 
-type SortField = "companyName" | "unitCount" | "totalPlacements" | "placementsThisYear" | null;
+type SortField =
+  | "companyName"
+  | "unitCount"
+  | "firstFilePlacementDate"
+  | "mostRecentFilePlacementDate"
+  | "totalPlacements"
+  | "placementsThisYear"
+  | null;
 type SortDir = "asc" | "desc";
+
+const DEFAULT_FILTERS: MyClientsFilters = {
+  minUnitCount: null,
+  bucket: "all",
+  settledInFull: "all",
+  integration: "all",
+  integrationSetup: "all",
+  taxCampaign: "all",
+  minRecoveryRate: null,
+};
 
 function nextSort(field: SortField, currentField: SortField, currentDir: SortDir): { field: SortField; dir: SortDir } {
   if (currentField !== field) return { field, dir: "asc" };
@@ -91,6 +109,23 @@ function formatCompactNumber(value: number | null | undefined): string {
   }).format(value);
 }
 
+function getSortableDateValue(value: string | null | undefined): number {
+  if (!value) return -1;
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? -1 : timestamp;
+}
+
+function getClientBucket(client: Client): number{
+  // return client.bucket ?? 1;
+  return Math.floor(Math.random() * (3 - 1 + 1)) + 1;
+}
+
+function getClientRecoveryRate(client: Client): number {
+  // hippo replace this
+  // return client.recoveryRate ?? 0;
+  return Math.floor(Math.random() * (25 - 0 + 1)) + 0;
+}
+
 export default function MyClients() {
   const { user: currentUser } = useAuth();
   const [allClients, setAllClients] = useState<Client[]>([]);
@@ -103,6 +138,9 @@ export default function MyClients() {
   const [territoryLoading, setTerritoryLoading] = useState(false);
   const [territoryError, setTerritoryError] = useState<string | null>(null);
   const [territoryRefreshKey, setTerritoryRefreshKey] = useState(0);
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filters, setFilters] = useState<MyClientsFilters>(DEFAULT_FILTERS);
+  const [draftFilters, setDraftFilters] = useState<MyClientsFilters>(DEFAULT_FILTERS);
 
   useEffect(() => {
     let ignore = false;
@@ -163,10 +201,34 @@ export default function MyClients() {
     );
   }).length;
 
-  const filtered = myClients.filter(c =>
-    c.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c.clientId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filtered = myClients.filter((client) => {
+    const searchMatches =
+      client.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      client.clientId.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const unitCountMatches = filters.minUnitCount === null || client.unitCount >= filters.minUnitCount;
+    const bucketMatches = filters.bucket === "all" || getClientBucket(client) === Number(filters.bucket);
+    const settledInFullMatches = filters.settledInFull === "all"
+      || (filters.settledInFull === "active" ? client.metadata.settled_in_full > 0 : client.metadata.settled_in_full <= 0);
+    const integrationMatches = filters.integration === "all"
+      || (filters.integration === "none" ? !client.metadata.integration : client.metadata.integration === filters.integration);
+    const integrationSetupMatches = filters.integrationSetup === "all"
+      || (client.onboardingChecklist?.integration_setup ?? false) === (filters.integrationSetup === "yes");
+    const taxCampaignMatches = filters.taxCampaign === "all"
+      || client.metadata.tax_campaign === (filters.taxCampaign === "yes");
+    const recoveryRateMatches = filters.minRecoveryRate === null || getClientRecoveryRate(client) >= filters.minRecoveryRate;
+
+    return (
+      searchMatches
+      && unitCountMatches
+      && bucketMatches
+      && settledInFullMatches
+      && integrationMatches
+      && integrationSetupMatches
+      && taxCampaignMatches
+      && recoveryRateMatches
+    );
+  });
 
   const filteredClients = [...filtered].sort((a, b) => {
     if (!sortField) return 0;
@@ -178,6 +240,12 @@ export default function MyClients() {
     } else if (sortField === "unitCount") {
       valA = a.unitCount;
       valB = b.unitCount;
+    } else if (sortField === "firstFilePlacementDate") {
+      valA = getSortableDateValue(a.firstFilePlacementDate);
+      valB = getSortableDateValue(b.firstFilePlacementDate);
+    } else if (sortField === "mostRecentFilePlacementDate") {
+      valA = getSortableDateValue(a.mostRecentFilePlacementDate);
+      valB = getSortableDateValue(b.mostRecentFilePlacementDate);
     } else if (sortField === "totalPlacements") {
       valA = 0;
       valB = 0;
@@ -195,6 +263,28 @@ export default function MyClients() {
     const next = nextSort(field, sortField, sortDir);
     setSortField(next.field);
     setSortDir(next.dir);
+  }
+
+  function openFilterModal() {
+    setDraftFilters(filters);
+    setShowFilterModal(true);
+  }
+
+  function applyFilters() {
+    setFilters(draftFilters);
+    setShowFilterModal(false);
+  }
+
+  function resetFilters() {
+    setDraftFilters(DEFAULT_FILTERS);
+    setFilters(DEFAULT_FILTERS);
+    setShowFilterModal(false);
+  }
+
+  function clearSavedFilter(key: keyof MyClientsFilters) {
+    const nextFilters = { ...filters, [key]: DEFAULT_FILTERS[key] };
+    setFilters(nextFilters);
+    setDraftFilters(nextFilters);
   }
 
   useEffect(() => {
@@ -256,9 +346,43 @@ export default function MyClients() {
     { label: "Total Units", value: totalUnits.toLocaleString(), icon: Building2, color: "text-indigo-600", bg: "bg-indigo-100" },
     { label: "New This Month", value: newThisMonth, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-100" },
   ];
+  const activeFilterLabels = [
+    filters.minUnitCount !== null
+      ? { key: "minUnitCount" as const, label: `Units >= ${filters.minUnitCount.toLocaleString()}` }
+      : null,
+    filters.bucket !== "all"
+      ? { key: "bucket" as const, label: `Bucket ${filters.bucket}` }
+      : null,
+    filters.settledInFull !== "all"
+      ? { key: "settledInFull" as const, label: `Settled: ${filters.settledInFull}` }
+      : null,
+    filters.integration !== "all"
+      ? {
+          key: "integration" as const,
+          label: `Integration: ${filters.integration === "none" ? "None" : filters.integration.replace(/_/g, " ")}`,
+        }
+      : null,
+    filters.integrationSetup !== "all"
+      ? { key: "integrationSetup" as const, label: `Setup: ${filters.integrationSetup}` }
+      : null,
+    filters.taxCampaign !== "all"
+      ? { key: "taxCampaign" as const, label: `Tax campaign: ${filters.taxCampaign}` }
+      : null,
+    filters.minRecoveryRate !== null
+      ? { key: "minRecoveryRate" as const, label: `Recovery >= ${filters.minRecoveryRate}%` }
+      : null,
+  ].filter((filter): filter is { key: keyof MyClientsFilters; label: string } => Boolean(filter));
 
   return (
     <AppLayout>
+      <MyClientsFilterModal
+        open={showFilterModal}
+        filters={draftFilters}
+        onChange={setDraftFilters}
+        onOpenChange={setShowFilterModal}
+        onApply={applyFilters}
+        onReset={resetFilters}
+      />
       <div className="mb-8">
         <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">My Clients</h1>
         <p className="text-muted-foreground mt-1 text-lg">Manage your active accounts and properties.</p>
@@ -406,11 +530,40 @@ export default function MyClients() {
               className="w-full pl-9 pr-4 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
             />
           </div>
-          <button className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-secondary text-secondary-foreground border border-secondary-border font-medium hover:bg-secondary/80 transition-colors shadow-sm">
-            <Filter className="w-4 h-4" />
-            Filter
-          </button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <button
+              type="button"
+              onClick={resetFilters}
+              disabled={activeFilterLabels.length === 0}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-background text-foreground border border-border font-medium hover:bg-muted transition-colors shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Clear Filters
+            </button>
+            <button
+              onClick={openFilterModal}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-secondary text-secondary-foreground border border-secondary-border font-medium hover:bg-secondary/80 transition-colors shadow-sm"
+            >
+              <Filter className="w-4 h-4" />
+              {activeFilterLabels.length > 0 ? `Filter (${activeFilterLabels.length})` : "Filter"}
+            </button>
+          </div>
         </div>
+        {activeFilterLabels.length > 0 && (
+          <div className="flex flex-wrap gap-2 border-b border-border/50 px-4 pb-4">
+            {activeFilterLabels.map((filter) => (
+              <button
+                type="button"
+                key={filter.key}
+                onClick={() => clearSavedFilter(filter.key)}
+                className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary/15"
+                aria-label={`Remove ${filter.label} filter`}
+              >
+                {filter.label}
+                <X className="h-3 w-3 text-primary/70" />
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="max-h-[65vh] overflow-x-auto overflow-y-auto">
           <table className="w-full text-left border-collapse">
@@ -435,8 +588,24 @@ export default function MyClients() {
                     <SortIcon field="unitCount" activeField={sortField} dir={sortDir} />
                   </button>
                 </th>
-                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-muted/80">First Placement</th>
-                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-muted/80">Last Placement</th>
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-muted/80">
+                  <button
+                    onClick={() => handleSort("firstFilePlacementDate")}
+                    className="flex items-center gap-1.5 hover:text-foreground transition-colors"
+                  >
+                    First Placement
+                    <SortIcon field="firstFilePlacementDate" activeField={sortField} dir={sortDir} />
+                  </button>
+                </th>
+                <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 backdrop-blur supports-[backdrop-filter]:bg-muted/80">
+                  <button
+                    onClick={() => handleSort("mostRecentFilePlacementDate")}
+                    className="flex items-center gap-1.5 hover:text-foreground transition-colors"
+                  >
+                    Last Placement
+                    <SortIcon field="mostRecentFilePlacementDate" activeField={sortField} dir={sortDir} />
+                  </button>
+                </th>
                 <th className="sticky top-0 z-10 bg-muted/95 px-6 py-4 text-right backdrop-blur supports-[backdrop-filter]:bg-muted/80">
                   <button
                     onClick={() => handleSort("totalPlacements")}
@@ -461,9 +630,9 @@ export default function MyClients() {
             </thead>
             <tbody className="divide-y divide-border/50">
               {filteredClients.map((client:Client) => {
-                const stale = client.mostRecentFilePlacementDate
-                  ? daysFromToday(client.mostRecentFilePlacementDate) > 365
-                  : false;
+                const stale = dateIsXDaysAgo(client.mostRecentFilePlacementDate);
+                const bucket = getClientBucket(client);
+                const recoveryRate = getClientRecoveryRate(client);
                 return (
                   <tr key={client.id} className="hover:bg-muted/20 transition-colors group">
                     <td className="px-6 py-4">
@@ -493,16 +662,17 @@ export default function MyClients() {
                     </td>
                     <td className="px-6 py-4 text-sm">
                       <div className="flex items-center gap-1.5">
-                        {stale && <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />}
-                        <span className={cn("font-medium", stale ? "text-red-600" : "text-muted-foreground")}>
+                        
+                        <span className={cn("font-medium", stale ? "text-amber-700" : "text-muted-foreground")}>
                           {formatMonthYear(client.mostRecentFilePlacementDate)}
                         </span>
+                        {stale && <AlertCircle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right text-sm font-medium text-foreground">
+                    <td className="px-6 py-4 text-center text-sm font-medium text-foreground">
                       0
                     </td>
-                    <td className="px-6 py-4 text-right text-sm font-medium text-foreground">
+                    <td className="px-6 py-4 text-center text-sm font-medium text-foreground">
                       0
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -510,15 +680,15 @@ export default function MyClients() {
                         "inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold",
                         "bg-slate-100 text-slate-700"
                       )}>
-                        0.0%
+                        {recoveryRate.toFixed(1)}%
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span className={cn(
                         "inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold",
-                        bucketColors[1]
+                        bucketColors[bucket]
                       )}>
-                        1
+                        {bucket}
                       </span>
                     </td>
                   </tr>

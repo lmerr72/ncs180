@@ -426,7 +426,6 @@ function SharedClientWizard({ onClose, onSuccess, mode }: Props & { mode: Wizard
   async function handleSubmit() {
     setSaving(true);
     setSaveError(null);
-    const auditAuthor = [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(" ") || "System";
     const auditRepId = currentUser?.repId ?? MOCK_USER.id;
 
     try {
@@ -444,7 +443,7 @@ function SharedClientWizard({ onClose, onSuccess, mode }: Props & { mode: Wizard
           unitCount: parseInt(form.unitCount, 10) || 0,
           contactIds: [],
           assignedRepId: isUnassignedSelection ? undefined : (selectedRep?.id ?? undefined),
-        }, auditAuthor, auditRepId);
+        });
       } else {
         await createProspect({
           companyName: form.companyName.trim(),
@@ -460,7 +459,7 @@ function SharedClientWizard({ onClose, onSuccess, mode }: Props & { mode: Wizard
           contactIds: [],
           assignedRepId: auditRepId,
           prospectStatus: toProspectStatusValue(form.prospectStatus),
-        }, auditAuthor, auditRepId);
+        });
       }
 
       await onSuccess?.();

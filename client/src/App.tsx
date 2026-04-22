@@ -8,10 +8,10 @@ import SignIn from "@/pages/SignIn";
 
 import Dashboard from "@/pages/dashboard/Dashboard";
 import MyClients from "@/pages/tabs/my-clients/MyClients";
-import AllClients from "@/pages/AllClients";
+import AllClients from "@/pages/tabs/all-clients/AllClients";
 import ClientProfile from "@/pages/client-profile/ClientProfile";
 import CalendarPage from "@/pages/Calendar";
-import Profile from "@/pages/Profile";
+import Profile from "@/pages/tabs/profile/Profile";
 import Pipeline from "@/pages/tabs/pipeline/Pipeline";
 import Metrics from "@/pages/tabs/metrics/Metrics";
 import Tasks from "@/pages/Tasks";
