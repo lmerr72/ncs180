@@ -1,0 +1,2 @@
+ALTER TABLE "Task"
+ADD COLUMN "automated" BOOLEAN NOT NULL DEFAULT false;

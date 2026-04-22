@@ -52,7 +52,7 @@ export type Timezone  =
   | "Alaska Time (AKT)"
   | "Hawaii Time (HT)";
 export type ClientStatus = 'active' | 'inactive' | 'prospecting' | 'onboarding';
-export type ProspectStatus = 'verbal' | 'not_started' | 'in_communication' | 'awaiting_review'  | 'closed' | 'inactive';
+export type ProspectStatus = 'verbal' | 'not_started' | 'in_communication' | 'awaiting_review' | 'onboarding' | 'closed' | 'inactive';
 export type Note = { id: string; text: string; author: string; timestamp: string };
 export type AuditEntry = {
   id: string;
@@ -72,10 +72,17 @@ export interface OnboardingChecklist {
   first_file_placed:     boolean;
 }
 
+export type ClientIntegration =
+  | "YARDI"
+  | "ENTRATA"
+  | "ONESITE"
+  | "RESMAN"
+  | "RENT_MANAGER";
+
 export interface ClientMetadata {
   prelegal: boolean;
   settled_in_full: number;
-  integration: string;
+  integration: ClientIntegration | null;
   tax_campaign: boolean;
 }
 
@@ -148,6 +155,7 @@ export interface Task {
   repId?: string; // rep assigned to the task
   title: string;
   completed: boolean;
+  automated: boolean;
   priority: Importance;
   dueDate: string;
   notes?:string;

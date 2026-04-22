@@ -32,7 +32,8 @@ function createMockDataStore() {
       return clients
         .filter(
           (client) =>
-            client.assignedRepId === currentUserId && client.clientStatus === 'PROSPECTING'
+            client.assignedRepId === currentUserId
+            && (client.clientStatus === 'PROSPECTING' || client.prospectStatus === 'ONBOARDING')
         )
         .map(mapClient);
     },
@@ -116,12 +117,12 @@ function createMockDataStore() {
     },
 
     async createProspect(input) {
-      const isClosedProspect = input.prospectStatus === 'CLOSED';
+      const isOnboardingProspect = input.prospectStatus === 'ONBOARDING';
       const record = buildClientRecord(input, {
-        clientId: isClosedProspect ? undefined : null,
-        clientStatus: isClosedProspect ? 'ONBOARDING' : 'PROSPECTING',
+        clientId: isOnboardingProspect ? undefined : null,
+        clientStatus: 'PROSPECTING',
         prospectStatus: input.prospectStatus,
-        createdClientDate: isClosedProspect ? new Date().toISOString().slice(0, 10) : null,
+        createdClientDate: isOnboardingProspect ? new Date().toISOString().slice(0, 10) : null,
         activeClientDate: null
       });
 
@@ -142,11 +143,10 @@ function createMockDataStore() {
       if (input.prospectStatus !== undefined) {
         client.prospectStatus = input.prospectStatus;
 
-        if (input.prospectStatus === 'CLOSED') {
+        if (input.prospectStatus === 'ONBOARDING') {
           const suffix = Date.now().toString().slice(-6);
           client.clientId = client.clientId ?? `CLT-${suffix}`;
           client.createdClientDate = client.createdClientDate ?? new Date().toISOString().slice(0, 10);
-          client.clientStatus = 'ONBOARDING';
         }
       }
 
@@ -155,6 +155,18 @@ function createMockDataStore() {
           ...(client.metadata ?? {}),
           ...input.metadata
         };
+      }
+
+      if (input.unitCount !== undefined) {
+        client.unitCount = input.unitCount;
+      }
+
+      if (input.address !== undefined) {
+        client.address1 = input.address.address1 ?? null;
+        client.address2 = input.address.address2 ?? null;
+        client.city = input.address.city ?? null;
+        client.state = input.address.state ?? null;
+        client.zipCode = input.address.zipCode ?? null;
       }
 
       return mapClient(client);
@@ -171,6 +183,7 @@ function createMockDataStore() {
         importance: input.importance,
         dueDate: input.dueDate,
         completed: input.completed ?? false,
+        automated: input.automated ?? false,
         commType: input.commType ?? null
       };
 
@@ -191,6 +204,7 @@ function createMockDataStore() {
       if (input.importance !== undefined) task.importance = input.importance;
       if (input.dueDate !== undefined) task.dueDate = input.dueDate;
       if (input.completed !== undefined) task.completed = input.completed;
+      if (input.automated !== undefined) task.automated = input.automated;
       if (input.commType !== undefined) task.commType = input.commType;
 
       return mapTask(task, clients.find((entry) => entry.id === task.clientId) ?? null);

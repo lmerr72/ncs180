@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { BarChart2, CalendarDays, Check, FileText, TrendingUp } from "lucide-react";
+import { BarChart2, CalendarDays, Check, FileText, Gauge, TrendingUp } from "lucide-react";
 import type { Client } from "@/types/api";
 import CustomSelect from "@/components/shared/CustomSelect";
 import {
@@ -17,48 +17,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import {
+  buildPlacementMonths,
+  buildReportingRows,
+  calculatePlacementChange,
+} from "../reportingUtils";
 
 const REPORTING_YEARS = ["2026", "2025", "2024", "2023", "2022"];
 const REPORT_TYPES = [{ value: "inventory", label: "Inventory Report" },{ value: "summary", label: "Summary Report" }];
-
-type PlacementMonth = {
-  monthDate: Date;
-  placements: number;
-};
-
-function addMonths(date: Date, amount: number): Date {
-  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
-}
-
-function getClientSeed(client: Client): number {
-  return Array.from(client.id || client.companyName).reduce((total, char) => total + char.charCodeAt(0), 0);
-}
-
-function buildPlacementMonths(client: Client, selectedYear: string): PlacementMonth[] {
-  const year = Number(selectedYear);
-  const periodEnd = new Date(year, 11, 1);
-  const unitCount = Math.max(client.unitCount ?? 0, 0);
-  const seed = getClientSeed(client);
-
-  return Array.from({ length: 15 }, (_, index) => {
-    const monthDate = addMonths(periodEnd, index - 14);
-    const percent = 5 + ((seed + index * 37 + monthDate.getMonth() * 11 + monthDate.getFullYear()) % 26);
-    const placements = Math.round(unitCount * (percent / 100));
-
-    return { monthDate, placements };
-  });
-}
-
-function calculatePlacementChange(months: PlacementMonth[]): number {
-  const currentWindow = months.slice(-3);
-  const priorWindow = months.slice(-6, -3);
-  const currentTotal = currentWindow.reduce((total, month) => total + month.placements, 0);
-  const priorTotal = priorWindow.reduce((total, month) => total + month.placements, 0);
-
-  if (priorTotal === 0) return currentTotal > 0 ? 100 : 0;
-
-  return Math.round(((currentTotal - priorTotal) / priorTotal) * 100);
-}
 
 function YearFilter({
   selectedYear,
@@ -140,6 +106,8 @@ function ReportingStatCard({
 export function ClientReportingStats({ client }: { client: Client }) {
   const [rollingAverageYear, setRollingAverageYear] = useState("2026");
   const [totalPlacementsYear, setTotalPlacementsYear] = useState("2026");
+  const [averageIqsYear, setAverageIqsYear] = useState("2026");
+  const [placementsThisMonthYear, setPlacementsThisMonthYear] = useState("2026");
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportType, setReportType] = useState("inventory");
 
@@ -160,6 +128,34 @@ export function ClientReportingStats({ client }: { client: Client }) {
 
     return { totalPlacements, change };
   }, [client, totalPlacementsYear]);
+
+  const averageIqs = useMemo(() => {
+    const selectedYear = Number(averageIqsYear);
+    const rows = buildReportingRows(client).filter(
+      (row) => row.datePlacedValue.getFullYear() === selectedYear
+    );
+    const total = rows.reduce((sum, row) => sum + row.iqs, 0);
+
+    return rows.length ? Math.round(total / rows.length) : 0;
+  }, [client, averageIqsYear]);
+
+  const placementsThisMonth = useMemo(() => {
+    const months = buildPlacementMonths(client, placementsThisMonthYear);
+    const selectedYear = Number(placementsThisMonthYear);
+    const currentMonthIndex = new Date().getMonth();
+    const monthEntry = months.find(
+      (month) =>
+        month.monthDate.getFullYear() === selectedYear
+        && month.monthDate.getMonth() === currentMonthIndex
+    );
+
+    return monthEntry?.placements ?? 0;
+  }, [client, placementsThisMonthYear]);
+
+  const placementsThisMonthLabel = useMemo(() => {
+    const currentMonth = new Intl.DateTimeFormat("en-US", { month: "long" }).format(new Date(2026, new Date().getMonth(), 1));
+    return `${currentMonth} placements for ${placementsThisMonthYear}`;
+  }, [placementsThisMonthYear]);
 
   const changeLabel = totalPlacementStats.change >= 0
     ? `Up ${totalPlacementStats.change}% over the last 3 months`
@@ -182,7 +178,38 @@ export function ClientReportingStats({ client }: { client: Client }) {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 sm:gap-4">
+        <ReportingStatCard
+          icon={CalendarDays}
+          label="Placements This Month"
+          value={placementsThisMonth.toLocaleString()}
+          sub={placementsThisMonthLabel}
+          iconColor="text-violet-600"
+          iconBg="bg-violet-50"
+          selectedYear={placementsThisMonthYear}
+          onYearChange={setPlacementsThisMonthYear}
+        >
+          <p
+            className={cn(
+              "mt-3 text-xs font-bold",
+              totalPlacementStats.change >= 0 ? "text-emerald-600" : "text-red-600"
+            )}
+          >
+            {changeLabel}
+          </p>
+        </ReportingStatCard>
+
+
+        <ReportingStatCard
+          icon={Gauge}
+          label="Average IQS"
+          value={averageIqs}
+          sub={`Average IQS for accounts placed in ${averageIqsYear}`}
+          iconColor="text-sky-600"
+          iconBg="bg-sky-50"
+          selectedYear={averageIqsYear}
+          onYearChange={setAverageIqsYear}
+        />
         <ReportingStatCard
           icon={TrendingUp}
           label="12 Month Rolling Average"
@@ -203,16 +230,7 @@ export function ClientReportingStats({ client }: { client: Client }) {
           iconBg="bg-amber-50"
           selectedYear={totalPlacementsYear}
           onYearChange={setTotalPlacementsYear}
-        >
-          <p
-            className={cn(
-              "mt-3 text-xs font-bold",
-              totalPlacementStats.change >= 0 ? "text-emerald-600" : "text-red-600"
-            )}
-          >
-            {changeLabel}
-          </p>
-        </ReportingStatCard>
+        />
       </div>
 
       <Dialog open={showReportModal} onOpenChange={setShowReportModal}>

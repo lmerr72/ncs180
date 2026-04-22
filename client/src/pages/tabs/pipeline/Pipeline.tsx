@@ -15,6 +15,7 @@ const STATUS_STYLES: Record<ProspectStatus, string> = {
   "in_communication": "bg-teal-100   text-teal-700   border-teal-200",
   "verbal":           "bg-sky-100    text-sky-700    border-sky-200",
   "awaiting_review":  "bg-amber-100  text-amber-700  border-amber-200",
+  "onboarding":       "bg-violet-100 text-violet-700 border-violet-200",
   "closed":"bg-gray-100 text-gray-700 border-gray-200",
   "inactive":"bg-slate-100 text-slate-600 border-slate-200"
 };
@@ -116,7 +117,7 @@ export default function Pipeline() {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {ProspectStatuses.map(status => (
            <SimpleStatCard
               key={status}

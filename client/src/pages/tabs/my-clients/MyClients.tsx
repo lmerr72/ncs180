@@ -128,7 +128,9 @@ export default function MyClients() {
         if (ignore) return;
 
         setAllClients(clients);
-        setMyClients(repClients.filter((client) => client.clientStatus === "active" || client.clientStatus === "onboarding"));
+        setMyClients(repClients.filter((client) =>
+          client.clientStatus === "active" && client.prospectStatus !== "onboarding"
+        ));
       } finally {
         if (!ignore) {
           setLoading(false);

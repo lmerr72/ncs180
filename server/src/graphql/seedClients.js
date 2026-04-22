@@ -1,9 +1,9 @@
 /*
-    Client 1 = longtime client, lots of placements
-    Client 2 = 2 year client, hasn't placed in 1 year
-    Client 3 =
-    Client 4 = inactive client
-    Client 5 = onboarding client
+- [ ] Company A = Old client, lots of placements, good health
+- [ ] Company B = Old client, hasn’t placed in a while
+- [ ] Company C = Newish client, high placement low recovery / not aggressive
+- [ ] Company D = Newish client, low placement high recovery
+- [ ] Company E = Old client, high placement high recovery / very aggressive
 */
 
 const clients = [
@@ -20,7 +20,7 @@ const clients = [
       isCorporate: true,
       corporateId: 'CORP-1001',
       firstFilePlacementDate: '2021-06-01',
-      mostRecentFilePlacementDate: '2025-11-15',
+      mostRecentFilePlacementDate: '2026-04-15',
       clientStatus: 'ACTIVE',
       prospectStatus: null,
       website: 'https://apex.example.com',
@@ -33,10 +33,10 @@ const clients = [
       contactIds: ['contact-seed-my-1'],
       unitCount: 3200,
       metadata: {
-        settled_in_full: 0,
+        settled_in_full: 85,
         prelegal: true,
-        integration: null,
-        tax_campaign:false
+        integration: 'YARDI',
+        tax_campaign:true
       }
     },
     {
@@ -52,7 +52,7 @@ const clients = [
       isCorporate: true,
       corporateId: 'CORP-1002',
       firstFilePlacementDate: '2020-10-15',
-      mostRecentFilePlacementDate: '2026-01-20',
+      mostRecentFilePlacementDate: '2025-01-20',
       clientStatus: 'ACTIVE',
       prospectStatus: null,
       website: 'https://bell.example.com',
@@ -72,7 +72,7 @@ const clients = [
       }
     },
     {
-      id: 'my-3',
+      id: 'my-3', // high placement low recovery
       clientId: 'CLT-1003',
       companyName: 'Cascade Housing',
       assignedRepId: 'client-rep-002',
@@ -84,7 +84,7 @@ const clients = [
       isCorporate: false,
       corporateId: 'CORP-1003',
       firstFilePlacementDate: '2022-03-05',
-      mostRecentFilePlacementDate: '2025-08-12',
+      mostRecentFilePlacementDate: '2026-04-02',
       clientStatus: 'ACTIVE',
       prospectStatus: null,
       website: 'https://cascade.example.com',
@@ -96,15 +96,15 @@ const clients = [
       zipCode: '80203',
       contactIds: ['contact-seed-my-3'],
       unitCount: 2150,   metadata: {
-        settled_in_full: 80,
-        prelegal: true,
-        integration: null,
+        settled_in_full: 0,
+        prelegal: false,
+        integration: 'RENT_MANAGER',
         tax_campaign:false
       }
     },
     {
       id: 'all-4',
-      clientId: 'CLT-1004',
+      clientId: 'CLT-1004', // low placement high recovery
       companyName: 'Dreamscape Residential Housing',
       assignedRepId: 'client-rep-005',
       createdDate: '2022-09-12',
@@ -114,10 +114,10 @@ const clients = [
       dbas: [],
       isCorporate: true,
       corporateId: 'CORP-1014',
-      firstFilePlacementDate: null,
-      mostRecentFilePlacementDate: '2026-02-25',
-      clientStatus: 'PROSPECTING',
-      prospectStatus: 'IN_COMMUNICATION',
+      firstFilePlacementDate: '2023-01-03',
+      mostRecentFilePlacementDate: '2025-12-25',
+      clientStatus: 'ACTIVE',
+      prospectStatus: 'CLOSED',
       website: 'https://dreamscape.example.com',
       linkedIn: 'https://linkedin.com/company/dreamscape-housing',
       address1: '200 W Monroe St',
@@ -129,24 +129,56 @@ const clients = [
       unitCount: 3900,   metadata: {
         settled_in_full: 75,
         prelegal: true,
-        integration: null,
+        integration: 'YARDI',
         tax_campaign:true
       }
     },
     {
         id: 'all-5',
-        clientId: 'CLT-1005',
+        clientId: 'CLT-1005', // high placement high recovery / aggressive
         companyName: 'Everclear Properties',
         assignedRepId: 'client-rep-005',
         createdDate: '2022-09-12',
         createdClientDate: '2022-09-12',
+        activeClientDate: '2022-09-12',
+        archiveDate: null,
+        dbas: [],
+        isCorporate: true,
+        corporateId: 'CORP-1014',
+        firstFilePlacementDate: '2022-11-11',
+        mostRecentFilePlacementDate: '2026-04-15',
+        clientStatus: 'ACTIVE',
+        prospectStatus: 'CLOSED',
+        website: 'https://everclear.example.com',
+        linkedIn: 'https://linkedin.com/company/everclear-housing',
+        address1: 'Hipster Paradise Ave',
+        address2: '',
+        city: 'Portland',
+        state: 'OR',
+        zipCode: '97201',
+        contactIds: ['contact-seed-all-4'],
+        unitCount: 6500,
+        metadata: {
+          settled_in_full: 90,
+          prelegal: true,
+          integration: 'RESMAN',
+          tax_campaign:true
+        }
+      },
+      {
+        id: 'all-6',
+        clientId: 'CLT-1006', 
+        companyName: 'Harborview Property Group',
+        assignedRepId: 'client-rep-002',
+        createdDate: '2026-02-12',
+        createdClientDate: null,
         activeClientDate: null,
         archiveDate: null,
         dbas: [],
         isCorporate: true,
         corporateId: 'CORP-1014',
         firstFilePlacementDate: null,
-        mostRecentFilePlacementDate: '2026-02-25',
+        mostRecentFilePlacementDate: null,
         clientStatus: 'PROSPECTING',
         prospectStatus: 'IN_COMMUNICATION',
         website: 'https://everclear.example.com',
@@ -156,12 +188,141 @@ const clients = [
         city: 'Chicago',
         state: 'IL',
         zipCode: '60606',
-        contactIds: ['contact-seed-all-4'],
-        unitCount: 3900,   metadata: {
+        contactIds: [],
+        unitCount: 4200,   
+        metadata: {
           settled_in_full: 0,
           prelegal: false,
           integration: null,
-          tax_campaign:true
+          tax_campaign:false
+        }
+      },
+      {
+        id: 'all-7',
+        clientId: 'CLT-1007', 
+        companyName: 'Grand Canyon Residential Management',
+        assignedRepId: 'client-rep-002',
+        createdDate: '2026-02-12',
+        createdClientDate: null,
+        activeClientDate: null,
+        archiveDate: null,
+        dbas: [],
+        isCorporate: true,
+        corporateId: 'CORP-2014',
+        firstFilePlacementDate: null,
+        mostRecentFilePlacementDate: null,
+        clientStatus: 'PROSPECTING',
+        prospectStatus: 'AWAITING_REVIEW',
+        website: 'https://everclear.example.com',
+        linkedIn: 'https://linkedin.com/company/everclear-housing',
+        address1: '100 1st St',
+        address2: '',
+        city: 'Phoenix',
+        state: 'AZ',
+        zipCode: '80123',
+        contactIds: [],
+        unitCount: 3900,   
+        metadata: {
+          settled_in_full: 0,
+          prelegal: false,
+          integration: null,
+          tax_campaign:false
+        }
+      },
+      {
+        id: 'all-8',
+        clientId: 'CLT-1008', // high placement high recovery / aggressive
+        companyName: 'Hope Sky Properties',
+        assignedRepId: 'client-rep-002',
+        createdDate: '2026-02-12',
+        createdClientDate: null,
+        activeClientDate: null,
+        archiveDate: null,
+        dbas: [],
+        isCorporate: true,
+        corporateId: 'CORP-1014',
+        firstFilePlacementDate: null,
+        mostRecentFilePlacementDate: null,
+        clientStatus: 'PROSPECTING',
+        prospectStatus: 'NOT_STARTED',
+        website: 'https://hsproperties.example.com',
+        linkedIn: 'https://linkedin.com/company/hope-sky-properties',
+        address1: '200 W Monroe St',
+        address2: 'Floor 12',
+        city: 'Denver',
+        state: 'CO',
+        zipCode: '80110',
+        contactIds: [],
+        unitCount: 5000,   
+        metadata: {
+          settled_in_full: 0,
+          prelegal: false,
+          integration: null,
+          tax_campaign:false
+        }
+      },
+      {
+        id: 'all-10',
+        clientId: 'CLT-1010', 
+        companyName: 'Indigo Property Management',
+        assignedRepId: 'client-rep-002',
+        createdDate: '2026-02-12',
+        createdClientDate: null,
+        activeClientDate: null,
+        archiveDate: null,
+        dbas: [],
+        isCorporate: true,
+        corporateId: 'CORP-1014',
+        firstFilePlacementDate: null,
+        mostRecentFilePlacementDate: null,
+        clientStatus: 'PROSPECTING',
+        prospectStatus: 'NOT_STARTED',
+        website: 'https://indigopm.example.com',
+        linkedIn: 'https://linkedin.com/company/indigo-properties',
+        address1: '348 Rainy St',
+        address2: 'Floor 3',
+        city: 'Seattle',
+        state: 'WA',
+        zipCode: '98199',
+        contactIds: [],
+        unitCount: 5100,   
+        metadata: {
+          settled_in_full: 0,
+          prelegal: false,
+          integration: null,
+          tax_campaign:false
+        }
+      },
+      {
+        id: 'all-9',
+        clientId: 'CLT-1009', 
+        companyName: 'Justice Residential',
+        assignedRepId: 'client-rep-002',
+        createdDate: '2025-07-19',
+        createdClientDate: null,
+        activeClientDate: null,
+        archiveDate: null,
+        dbas: [],
+        isCorporate: true,
+        corporateId: 'CORP-2049',
+        firstFilePlacementDate: null,
+        mostRecentFilePlacementDate: null,
+        clientStatus: 'PROSPECTING',
+        prospectStatus: 'ONBOARDING',
+        website: 'https://justiceres.example.com',
+        linkedIn: 'https://linkedin.com/company/justice-residential',
+        address1: '348 Rainy St',
+        address2: 'Floor 3',
+        city: 'Los Angeles',
+        state: 'CA',
+        zipCode: '90001',
+        contactIds: [],
+        unitCount: 8400,   
+        metadata: {
+          settled_in_full: 0,
+          prelegal: false,
+          integration: null,
+          tax_campaign:false
         }
       }
   ];

@@ -10,7 +10,6 @@ enum ClientStatus {
   ACTIVE
   INACTIVE
   PROSPECTING
-  ONBOARDING
 }
 
 enum ProspectStatus {
@@ -18,7 +17,16 @@ enum ProspectStatus {
   NOT_STARTED
   IN_COMMUNICATION
   AWAITING_REVIEW
+  ONBOARDING
   CLOSED
+}
+
+enum ClientIntegration {
+  YARDI
+  ENTRATA
+  ONESITE
+  RESMAN
+  RENT_MANAGER
 }
 
 enum TaskType {
@@ -115,6 +123,7 @@ model AuditLog {
   client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
   action    String
   author    String
+  repId     String
   timestamp DateTime @default(now())
   type      String
 
@@ -150,6 +159,7 @@ model Task {
   importance  Importance
   dueDate     DateTime
   completed   Boolean       @default(false)
+  automated   Boolean       @default(false)
   commType    TaskCommType?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt

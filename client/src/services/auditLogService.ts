@@ -1,6 +1,7 @@
 import { gql } from "@apollo/client";
 import { apolloClient } from "@/lib/apollo";
 import type { AuditEntry } from "@/types/api";
+import { AUTH_STORAGE_KEY } from "@/context/AuthContext";
 
 type GraphqlAuditEntry = {
   id: string;
@@ -79,6 +80,24 @@ function normalizeAuditEntry(entry: GraphqlAuditEntry): AuditEntry {
   };
 }
 
+function getLoggedInRepId(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!stored) {
+      return null;
+    }
+
+    const parsed = JSON.parse(stored) as { repId?: string | null } | null;
+    return parsed?.repId?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getAuditLogEntries(
   clientId: string,
   startDate?: string,
@@ -102,13 +121,17 @@ export async function getAuditLogEntries(
 export async function createAuditLogEntry(
   input: CreateAuditLogEntryMutationVariables["input"]
 ): Promise<AuditEntry> {
+  const repId = getLoggedInRepId() ?? input.repId;
   const response = await apolloClient.mutate<
     CreateAuditLogEntryMutationData,
     CreateAuditLogEntryMutationVariables
   >({
     mutation: CREATE_AUDIT_LOG_ENTRY_MUTATION,
     variables: {
-      input
+      input: {
+        ...input,
+        repId
+      }
     }
   });
 

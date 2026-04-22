@@ -72,13 +72,14 @@ const EMPTY: FormData = {
   prospectStatus: "Not Started",
 };
 
-const ALL_STATUSES: ProspectStatus[] = ["Not Started", "In Communication", "Awaiting Review", "Verbal", "Closed"];
+const ALL_STATUSES: ProspectStatus[] = ["Not Started", "In Communication", "Awaiting Review", "Verbal", "Onboarding", "Closed"];
 
 const STATUS_STYLES: Record<ProspectStatus, { badge: string; dot: string }> = {
   Verbal: { badge: "bg-sky-100 text-sky-700 border-sky-200", dot: "bg-sky-400" },
   "In Communication": { badge: "bg-teal-100 text-teal-700 border-teal-200", dot: "bg-teal-400" },
   "Awaiting Review": { badge: "bg-amber-100 text-amber-700 border-amber-200", dot: "bg-amber-400" },
   "Not Started": { badge: "bg-orange-100 text-orange-700 border-orange-200", dot: "bg-orange-400" },
+  Onboarding: { badge: "bg-violet-100 text-violet-700 border-violet-200", dot: "bg-violet-400" },
   Closed: { badge: "bg-gray-100 text-gray-700 border-gray-200", dot: "bg-gray-400" },
 };
 
@@ -278,7 +279,7 @@ export function SeedInsightCard({ seed }: { seed: SeedResult | null }) {
 
 function toProspectStatusValue(
   status: ProspectStatus
-): "VERBAL" | "IN_COMMUNICATION" | "AWAITING_REVIEW" | "CLOSED" | "NOT_STARTED" {
+): "VERBAL" | "IN_COMMUNICATION" | "AWAITING_REVIEW" | "ONBOARDING" | "CLOSED" | "NOT_STARTED" {
   switch (status) {
     case "Verbal":
       return "VERBAL";
@@ -286,6 +287,8 @@ function toProspectStatusValue(
       return "IN_COMMUNICATION";
     case "Awaiting Review":
       return "AWAITING_REVIEW";
+    case "Onboarding":
+      return "ONBOARDING";
     case "Closed":
       return "CLOSED";
     case "Not Started":
@@ -463,7 +466,7 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
           <h2 className="text-xl font-bold text-foreground mb-1">{successTitle}</h2>
           <p className="text-muted-foreground text-sm mb-1">
             <span className="font-semibold text-foreground">{form.companyName}</span>
-            {isClientMode ? " has been added to All Clients." : " has been added to your Pipeline."}
+            {isClientMode ? " has been added to Clients." : " has been added to your Pipeline."}
           </p>
           {isClientMode && selectedRep?.id === (currentUser?.repId ?? MOCK_USER.id) && (
             <p className="text-xs text-emerald-600 font-medium mb-6">Also visible in your My Clients page.</p>

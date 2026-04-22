@@ -1,5 +1,4 @@
-import type { Task, Meeting, Event, Client, UserProfile, GoalProgress, ClientStatus, TaskType, Importance } from "@/types/api";
-export type { TaskType } from "@/types/api";
+import type { Meeting, Event, Client, UserProfile, GoalProgress, ClientStatus } from "@/types/api";
 
 export const MOCK_USER: UserProfile = {
   id: "rep-gordon-m",
@@ -176,7 +175,7 @@ function getClientStatus(lastPlacementDate: string | null): ClientStatus {
   return lastPlacement >= inactiveThreshold ? "active" : "inactive";
 }
 
-export type ProspectStatus = "Verbal" | "In Communication" | "Awaiting Review" | "Not Started" | "Closed";
+export type ProspectStatus = "Verbal" | "In Communication" | "Awaiting Review" | "Not Started" | "Onboarding" | "Closed";
 
 
 
@@ -197,176 +196,6 @@ export const REP_KEY_TO_ID: Record<string, string> = {
 
 
 
-
-export type CommType = "email" | "phone" | null;
-export type TaskCompanyOrigin = "all-clients" | "my-clients" | "pipeline";
-
-export type ExtendedTask = {
-  id: string;
-  title: string;
-  description: string;
-  taskType: TaskType;
-  importance: Importance;
-  dueDate: string;
-  completed: boolean;
-  commType: CommType;
-  associatedCompanyName?: string;
-  associatedCompanyId?: string;
-  associatedCompanyOrigin?: TaskCompanyOrigin;
-};
-
-export const MOCK_EXTENDED_TASKS: ExtendedTask[] = [
-  {
-    id: "et1",
-    title: "Follow up on Q2 renewal",
-    description: "Send updated renewal contract to the facilities director and confirm signature timeline.",
-    taskType: "Follow-Up",
-    importance: "HIGH",
-    dueDate: "Today",
-    completed: false,
-    commType: "email",
-    associatedCompanyName: "Synergy Properties",
-    associatedCompanyId: "c0",
-    associatedCompanyOrigin: "all-clients",
-  },
-  {
-    id: "et2",
-    title: "Budget review call",
-    description: "Discuss Q3 budget availability and procurement process with the operations lead.",
-    taskType: "Prospecting",
-    importance: "HIGH",
-    dueDate: "Tomorrow",
-    completed: false,
-    commType: "phone",
-    associatedCompanyName: "Apex Management",
-    associatedCompanyId: "c1",
-    associatedCompanyOrigin: "all-clients",
-  },
-  {
-    id: "et3",
-    title: "Prepare Q2 forecast deck",
-    description: "Compile Q1 actuals, build YoY comparison, and draft Q2 projection slides for leadership review.",
-    taskType: "Other",
-    importance: "MEDIUM",
-    dueDate: "Mar 20",
-    completed: false,
-    commType: null,
-  },
-  {
-    id: "et4",
-    title: "New admin onboarding session",
-    description: "Walk the Summit Housing admin team through reporting features, dashboard setup, and user roles.",
-    taskType: "Training",
-    importance: "MEDIUM",
-    dueDate: "Mar 24",
-    completed: false,
-    commType: null,
-    associatedCompanyName: "Summit Housing",
-    associatedCompanyId: "c2",
-    associatedCompanyOrigin: "all-clients",
-  },
-  {
-    id: "et5",
-    title: "Schedule intro demo",
-    description: "Coordinate a platform demo for their Denver portfolio manager — confirm attendees and send calendar invite.",
-    taskType: "Prospecting",
-    importance: "HIGH",
-    dueDate: "Mar 22",
-    completed: false,
-    commType: "email",
-    associatedCompanyName: "Pinnacle Apartments",
-    associatedCompanyId: "c3",
-    associatedCompanyOrigin: "all-clients",
-  },
-  {
-    id: "et6",
-    title: "Update call log",
-    description: "Log last week's check-in notes, update primary contact info, and flag open action items.",
-    taskType: "Follow-Up",
-    importance: "LOW",
-    dueDate: "Mar 25",
-    completed: false,
-    commType: "phone",
-    associatedCompanyName: "Nexus Group",
-    associatedCompanyId: "c4",
-    associatedCompanyOrigin: "all-clients",
-  },
-  {
-    id: "et7",
-    title: "MSA redlines review",
-    description: "Review the MSA redlines submitted by their legal team and flag items requiring escalation.",
-    taskType: "Follow-Up",
-    importance: "HIGH",
-    dueDate: "Mar 21",
-    completed: false,
-    commType: "email",
-    associatedCompanyName: "Vantage Properties",
-    associatedCompanyId: "c5",
-    associatedCompanyOrigin: "all-clients",
-  },
-  {
-    id: "et8",
-    title: "Quarterly platform training",
-    description: "Cover new reporting features, dashboard changes, and the updated placement workflow with the team.",
-    taskType: "Training",
-    importance: "LOW",
-    dueDate: "Mar 28",
-    completed: true,
-    commType: null,
-  },
-  {
-    id: "et9",
-    title: "Renewal terms call",
-    description: "Discuss multi-year renewal pricing, volume discounts, and updated SLA terms.",
-    taskType: "Follow-Up",
-    importance: "MEDIUM",
-    dueDate: "Mar 23",
-    completed: false,
-    commType: "phone",
-    associatedCompanyName: "Horizon Management",
-    associatedCompanyId: "c6",
-    associatedCompanyOrigin: "all-clients",
-  },
-  {
-    id: "et10",
-    title: "Initial outreach email",
-    description: "Send intro email to the property manager introducing our services and requesting a discovery call.",
-    taskType: "Prospecting",
-    importance: "MEDIUM",
-    dueDate: "Mar 26",
-    completed: false,
-    commType: "email",
-    associatedCompanyName: "Zenith Apartments",
-    associatedCompanyId: "c7",
-    associatedCompanyOrigin: "all-clients",
-  },
-  {
-    id: "et11",
-    title: "Placement volume check-in",
-    description: "Review YTD placement count against contract minimums and identify any at-risk thresholds.",
-    taskType: "Follow-Up",
-    importance: "MEDIUM",
-    dueDate: "Mar 27",
-    completed: false,
-    commType: "phone",
-    associatedCompanyName: "Catalyst Housing",
-    associatedCompanyId: "c8",
-    associatedCompanyOrigin: "all-clients",
-  },
-  {
-    id: "et12",
-    title: "Send pricing proposal",
-    description: "Draft and send a tiered pricing proposal based on their 10,000-unit portfolio across three markets.",
-    taskType: "Prospecting",
-    importance: "HIGH",
-    dueDate: "Mar 29",
-    completed: false,
-    commType: "email",
-    associatedCompanyName: "Momentum Properties",
-    associatedCompanyId: "c10",
-    associatedCompanyOrigin: "all-clients",
-  },
-];
 
 export const MOCK_GOALS: GoalProgress = {
   quarterlyGoal: 100,

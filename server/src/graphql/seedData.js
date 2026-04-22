@@ -144,7 +144,7 @@ const contacts = [
 
 const tasks = [
   {
-    id: 'task-seed-1',
+    id: 'task-seed-my-1',
     repId: 'client-rep-002',
     clientId: 'my-1',
     title: 'Follow up on Q2 renewal',
@@ -153,31 +153,60 @@ const tasks = [
     importance: 'HIGH',
     dueDate: '2026-04-06',
     completed: false,
+    automated: false,
     commType: 'EMAIL'
   },
   {
-    id: 'task-seed-2',
+    id: 'task-seed-my-2',
     repId: 'client-rep-002',
     clientId: 'my-2',
-    title: 'Call Apex Management about training',
+    title: 'Call Bell Management about training',
     description: 'Confirm attendees and agenda for the upcoming implementation training session.',
     taskType: 'TRAINING',
-    importance: 'MEDIUM',
-    dueDate: '2026-04-07',
+    importance: 'LOW',
+    dueDate: '2026-04-22',
     completed: false,
+    automated: false,
     commType: 'PHONE'
   },
   {
-    id: 'task-seed-3',
+    id: 'task-seed-my-3',
     repId: 'client-rep-002',
-    clientId: null,
-    title: 'Prepare prospecting list for Denver',
-    description: 'Build a new list of ownership groups to target this week.',
+    clientId: 'my-3',
+    title: 'Review Cascade placement volume',
+    description: 'Compare recent placements against the account plan and flag any portfolio gaps.',
+    taskType: 'FOLLOW_UP',
+    importance: 'MEDIUM',
+    dueDate: '2026-04-22',
+    completed: false,
+    automated: false,
+    commType: 'PHONE'
+  },
+  {
+    id: 'task-seed-all-4',
+    repId: 'client-rep-007',
+    clientId: 'all-4',
+    title: 'Send Dreamscape prospecting recap',
+    description: 'Summarize discovery notes and send the next-step recap to the account manager.',
     taskType: 'PROSPECTING',
+    importance: 'HIGH',
+    dueDate: '2026-04-22',
+    completed: false,
+    automated: false,
+    commType: 'EMAIL'
+  },
+  {
+    id: 'task-seed-all-5',
+    repId: 'client-rep-007',
+    clientId: 'all-5',
+    title: 'Confirm Everclear tax campaign interest',
+    description: 'Reach out to confirm campaign timing and whether prelegal should be included.',
+    taskType: 'FOLLOW_UP',
     importance: 'LOW',
-    dueDate: '2026-04-09',
-    completed: true,
-    commType: null
+    dueDate: '2026-05-10',
+    completed: false,
+    automated: false,
+    commType: 'PHONE'
   }
 ];
 
@@ -202,6 +231,40 @@ const auditLogs = [
   }
 ];
 
+function assertUniqueClientField(fieldName) {
+  const seen = new Set();
+
+  for (const client of clients) {
+    const value = client[fieldName];
+    if (value == null) {
+      continue;
+    }
+
+    if (seen.has(value)) {
+      throw new Error(`Seed client data contains duplicate ${fieldName}: ${value}`);
+    }
+
+    seen.add(value);
+  }
+}
+
+function assertRequiredClientString(fieldName) {
+  for (const client of clients) {
+    const value = client[fieldName];
+    if (typeof value !== 'string' || value.trim() === '') {
+      throw new Error(`Seed client data is missing required ${fieldName} for client id ${client.id}`);
+    }
+  }
+}
+
+function validateSeedClients() {
+  assertRequiredClientString('id');
+  assertRequiredClientString('companyName');
+  assertRequiredClientString('corporateId');
+  assertUniqueClientField('id');
+  assertUniqueClientField('clientId');
+}
+
 function createDefaultOnboardingChecklist() {
   return {
     agreement_signed: false,
@@ -216,9 +279,26 @@ function createDefaultClientMetadata() {
   return {
     prelegal: false,
     settled_in_full: 0,
-    integration: '',
+    integration: null,
     tax_campaign: false
   };
+}
+
+const CLIENT_INTEGRATIONS = new Set([
+  'YARDI',
+  'ENTRATA',
+  'ONESITE',
+  'RESMAN',
+  'RENT_MANAGER'
+]);
+
+function normalizeClientIntegration(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalizedValue = value.trim().toUpperCase();
+  return CLIENT_INTEGRATIONS.has(normalizedValue) ? normalizedValue : null;
 }
 
 function toDate(value) {
@@ -301,10 +381,11 @@ function mapClient(client) {
       : null,
     contactIds: client.contactIds ?? [],
     unitCount: client.unitCount,
-    onboardingChecklist: buildOnboardingChecklist(client.clientStatus),
+    onboardingChecklist: buildOnboardingChecklist(client),
     metadata: {
       ...createDefaultClientMetadata(),
-      ...(client.metadata ?? {})
+      ...(client.metadata ?? {}),
+      integration: normalizeClientIntegration(client.metadata?.integration)
     }
   };
 }
@@ -332,13 +413,24 @@ function mapTask(task, client = null) {
     importance: task.importance,
     dueDate: serializeDate(task.dueDate),
     completed: Boolean(task.completed),
+    automated: Boolean(task.automated),
     commType: task.commType ?? null,
     client: client ? mapClient(client) : null
   };
 }
 
-function buildOnboardingChecklist(status) {
-  if (status === 'active') {
+function buildOnboardingChecklist(client) {
+  if (client.prospectStatus === 'ONBOARDING') {
+    return {
+      agreement_signed: false,
+      property_list_created: false,
+      ach: false,
+      integration_setup: false,
+      first_file_placed: false
+    };
+  }
+
+  if (client.clientStatus === 'ACTIVE') {
     return    {    
       agreement_signed: true,
       property_list_created: true,
@@ -396,6 +488,8 @@ function buildClientRecord(input, overrides = {}) {
 }
 
 function toPrismaUserCreateManyInput() {
+  validateSeedClients();
+
   return users.map((user) => ({
     ...user
   }));
@@ -416,10 +510,14 @@ function buildPrismaOnboardingChecklist(client) {
 }
 
 function toPrismaOnboardingChecklistCreateManyInput() {
+  validateSeedClients();
+
   return clients.map((client) => buildPrismaOnboardingChecklist(client));
 }
 
 function toPrismaClientCreateManyInput() {
+  validateSeedClients();
+
   return clients.map((client) => ({
     ...client,
     onboardingChecklistId: `onboarding-checklist-${client.id}`,

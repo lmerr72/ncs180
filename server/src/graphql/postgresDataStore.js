@@ -143,7 +143,10 @@ function createPostgresDataStore({ prisma } = {}) {
         prismaClient.client.findMany({
           where: {
             assignedRepId: currentUserId,
-            clientStatus: 'PROSPECTING'
+            OR: [
+              { clientStatus: 'PROSPECTING' },
+              { prospectStatus: 'ONBOARDING' }
+            ]
           },
           orderBy: {
             companyName: 'asc'
@@ -294,6 +297,7 @@ function createPostgresDataStore({ prisma } = {}) {
             importance: input.importance,
             dueDate: new Date(`${input.dueDate}T00:00:00.000Z`),
             completed: input.completed ?? false,
+            automated: input.automated ?? false,
             commType: input.commType ?? null
           },
           include: {
@@ -322,6 +326,7 @@ function createPostgresDataStore({ prisma } = {}) {
               ? { dueDate: new Date(`${input.dueDate}T00:00:00.000Z`) }
               : {}),
             ...(input.completed !== undefined ? { completed: input.completed } : {}),
+            ...(input.automated !== undefined ? { automated: input.automated } : {}),
             ...(input.commType !== undefined ? { commType: input.commType } : {})
           },
           include: {
@@ -392,18 +397,18 @@ function createPostgresDataStore({ prisma } = {}) {
     async createProspect(input) {
       const prismaClient = getPrismaClient();
       const suffix = Date.now().toString().slice(-6);
-      const isClosedProspect = input.prospectStatus === 'CLOSED';
+      const isOnboardingProspect = input.prospectStatus === 'ONBOARDING';
       const created = await runPrismaOperation('createProspect', () =>
         prismaClient.client.create({
           data: {
-            clientId: isClosedProspect ? `CLT-${suffix}` : null,
+            clientId: isOnboardingProspect ? `CLT-${suffix}` : null,
             companyName: input.companyName.trim(),
             createdDate: new Date(),
-            createdClientDate: isClosedProspect ? new Date() : null,
+            createdClientDate: isOnboardingProspect ? new Date() : null,
             dbas: input.dbas ?? [],
             isCorporate: input.isCorporate ?? false,
             corporateId: `CORP-${suffix}`,
-            clientStatus: isClosedProspect ? 'ONBOARDING' : 'PROSPECTING',
+            clientStatus: 'PROSPECTING',
             prospectStatus: input.prospectStatus,
             website: input.website || null,
             linkedIn: input.linkedIn || null,
@@ -440,20 +445,27 @@ function createPostgresDataStore({ prisma } = {}) {
           throw new Error(`Client ${id} was not found.`);
         }
 
-        const closedProspect = input.prospectStatus === 'CLOSED';
+        const onboardingProspect = input.prospectStatus === 'ONBOARDING';
         const suffix = Date.now().toString().slice(-6);
         const currentMetadata =
           existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata)
             ? existing.metadata
             : {};
+        const hasAddressUpdate = input.address !== undefined;
 
         return prismaClient.client.update({
           where: { id },
           data: {
-            clientStatus: closedProspect ? 'ONBOARDING' : input.clientStatus ?? undefined,
+            clientStatus: input.clientStatus ?? undefined,
             prospectStatus: input.prospectStatus ?? undefined,
-            clientId: closedProspect ? existing.clientId ?? `CLT-${suffix}` : undefined,
-            createdClientDate: closedProspect ? existing.createdClientDate ?? new Date() : undefined,
+            clientId: onboardingProspect ? existing.clientId ?? `CLT-${suffix}` : undefined,
+            createdClientDate: onboardingProspect ? existing.createdClientDate ?? new Date() : undefined,
+            unitCount: input.unitCount ?? undefined,
+            address1: hasAddressUpdate ? input.address.address1 ?? null : undefined,
+            address2: hasAddressUpdate ? input.address.address2 ?? null : undefined,
+            city: hasAddressUpdate ? input.address.city ?? null : undefined,
+            state: hasAddressUpdate ? input.address.state ?? null : undefined,
+            zipCode: hasAddressUpdate ? input.address.zipCode ?? null : undefined,
             metadata: input.metadata !== undefined
               ? {
                   ...currentMetadata,

@@ -124,7 +124,8 @@ export default function OutlookEmailWidget({
     }
 
     if (error) {
-      return error;
+      console.error('[OutlookEmailWidget]: failed to connect to outlook inbox',error)
+      return 'Failed to connect to Outlook inbox';
     }
 
     return emptyMessage;

@@ -2,7 +2,7 @@ import { gql } from "@apollo/client";
 import { apolloClient } from "@/lib/apollo";
 import type { TaskType, Importance } from "@/types/api";
 export type TaskCommType = "email" | "phone" | null;
-export type TaskCompanyOrigin = "all-clients" | "my-clients" | "pipeline";
+export type TaskCompanyOrigin = "clients" | "my-clients" | "pipeline";
 
 export type ExtendedTask = {
   id: string;
@@ -13,6 +13,7 @@ export type ExtendedTask = {
   dueDate: string;
   dueDateValue: string;
   completed: boolean;
+  automated: boolean;
   commType: TaskCommType;
   associatedCompanyName?: string;
   associatedCompanyId?: string;
@@ -32,6 +33,7 @@ type GraphqlTask = {
   importance: Importance;
   dueDate: string;
   completed: boolean;
+  automated: boolean;
   commType: GraphqlTaskCommType;
   client?: {
     id: string;
@@ -69,6 +71,7 @@ export type CreateTaskServiceInput = {
   importance: Importance;
   dueDate: string;
   completed?: boolean;
+  automated?: boolean;
   commType?: Exclude<TaskCommType, null>;
 };
 
@@ -80,6 +83,7 @@ export type UpdateTaskServiceInput = {
   importance?: Importance;
   dueDate?: string;
   completed?: boolean;
+  automated?: boolean;
   commType?: TaskCommType;
 };
 
@@ -93,6 +97,7 @@ type CreateTaskMutationVariables = {
     importance: Importance;
     dueDate: string;
     completed?: boolean;
+    automated?: boolean;
     commType?: Exclude<GraphqlTaskCommType, null>;
   };
 };
@@ -107,6 +112,7 @@ type UpdateTaskMutationVariables = {
     importance?: Importance;
     dueDate?: string;
     completed?: boolean;
+    automated?: boolean;
     commType?: GraphqlTaskCommType;
   };
 };
@@ -126,6 +132,7 @@ export const TASK_FIELDS = gql`
     importance
     dueDate
     completed
+    automated
     commType
     client {
       id
@@ -196,6 +203,7 @@ export async function createTask(input: CreateTaskServiceInput): Promise<Extende
         importance: input.importance,
         dueDate: input.dueDate,
         ...(input.completed !== undefined ? { completed: input.completed } : {}),
+        ...(input.automated !== undefined ? { automated: input.automated } : {}),
         ...(input.commType ? { commType: toGraphqlCommType(input.commType) } : {})
       }
     }
@@ -221,6 +229,7 @@ export async function updateTask(id: string, input: UpdateTaskServiceInput): Pro
         ...(input.importance !== undefined ? { importance: input.importance } : {}),
         ...(input.dueDate !== undefined ? { dueDate: input.dueDate } : {}),
         ...(input.completed !== undefined ? { completed: input.completed } : {}),
+        ...(input.automated !== undefined ? { automated: input.automated } : {}),
         ...(input.commType !== undefined ? { commType: toGraphqlCommType(input.commType) } : {})
       }
     }
@@ -256,6 +265,7 @@ function toExtendedTask(task: GraphqlTask): ExtendedTask {
     dueDate: formatDueDate(task.dueDate),
     dueDateValue: task.dueDate.slice(0, 10),
     completed: task.completed,
+    automated: task.automated,
     commType: fromGraphqlCommType(task.commType),
     associatedCompanyName: task.client?.companyName ?? undefined,
     associatedCompanyId: task.client?.id ?? task.clientId ?? undefined,

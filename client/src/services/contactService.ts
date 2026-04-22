@@ -66,9 +66,7 @@ export type UpdateContactMutationVariables = {
 };
 
 export type DeleteContactMutationData = {
-  deleteContact: {
-    id: string;
-  };
+  deleteContact: GraphqlContact;
 };
 
 export type DeleteContactMutationVariables = {
@@ -155,11 +153,16 @@ function normalizeContact(contact: GraphqlContact): GraphqlContact {
   };
 }
 
+function getContactDisplayName(contact: Pick<GraphqlContact, "firstName" | "lastName">): string {
+  const fullName = `${contact.firstName} ${contact.lastName}`.trim();
+  return fullName || "Unknown contact";
+}
+
 export async function createContact(
   clientId: string,
   input: CreateContactMutationVariables["input"],
   author: string,
-  repId: string
+  repId: string = author
 ): Promise<GraphqlContact> {
   const response = await apolloClient.mutate<CreateContactMutationData, CreateContactMutationVariables>({
     mutation: CREATE_CONTACT_MUTATION,
@@ -176,9 +179,9 @@ export async function createContact(
 
   await createAuditLogEntry({
     clientId,
-    action: "Created contact",
-    author: author,
-    repId: repId,
+    action: `Added contact: ${getContactDisplayName(createdContact)}`,
+    author,
+    repId,
     type: "create"
   });
 
@@ -189,7 +192,7 @@ export async function bulkCreateContacts(
   clientId: string,
   inputs: BulkCreateContactsMutationVariables["inputs"],
   author: string,
-  repId: string
+  repId: string = author
 ): Promise<GraphqlContact[]> {
   const response = await apolloClient.mutate<BulkCreateContactsMutationData, BulkCreateContactsMutationVariables>({
     mutation: BULK_CREATE_CONTACTS_MUTATION,
@@ -201,13 +204,17 @@ export async function bulkCreateContacts(
 
   const createdContacts = response.data?.bulkCreateContacts ?? [];
 
-  await createAuditLogEntry({
-    clientId,
-    action: `Created ${createdContacts.length} contacts through Apollo`,
-    author: author,
-    repId: repId,
-    type: "create"
-  });
+  await Promise.all(
+    createdContacts.map((contact) =>
+      createAuditLogEntry({
+        clientId,
+        action: `Added contact: ${getContactDisplayName(contact)}`,
+        author,
+        repId,
+        type: "create"
+      })
+    )
+  );
 
   return createdContacts.map(normalizeContact);
 }
@@ -217,7 +224,7 @@ export async function updateContact(
   input: UpdateContactMutationVariables["input"],
   clientId: string,
   author: string,
-  repId: string
+  repId: string = author
 ): Promise<GraphqlContact> {
   const response = await apolloClient.mutate<UpdateContactMutationData, UpdateContactMutationVariables>({
     mutation: UPDATE_CONTACT_MUTATION,
@@ -235,15 +242,20 @@ export async function updateContact(
   await createAuditLogEntry({
     clientId,
     action: "Updated contact details", // hippo make more specific
-    author: author,
-    repId: repId,
+    author,
+    repId,
     type: "update"
   });
 
   return normalizeContact(updatedContact);
 }
 
-export async function deleteContact(id: string, clientId: string, author: string, repId: string): Promise<string> {
+export async function deleteContact(
+  id: string,
+  clientId: string,
+  author: string,
+  repId: string = author
+): Promise<string> {
   const response = await apolloClient.mutate<DeleteContactMutationData, DeleteContactMutationVariables>({
     mutation: DELETE_CONTACT_MUTATION,
     variables: {
@@ -258,9 +270,9 @@ export async function deleteContact(id: string, clientId: string, author: string
 
   await createAuditLogEntry({
     clientId,
-    action: "deleted contact",
-    author: author,
-    repId: repId,
+    action: `Deleted contact: ${getContactDisplayName(deletedContact)}`,
+    author,
+    repId,
     type: "delete"
   });
 

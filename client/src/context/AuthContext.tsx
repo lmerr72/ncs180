@@ -9,7 +9,7 @@ interface AuthContextValue {
   logout: () => void;
 }
 
-const AUTH_STORAGE_KEY = "ncs180.auth.user";
+export const AUTH_STORAGE_KEY = "ncs180.auth.user";
 
 const DUMMY_USERS: Array<UserProfile & { password: string }> = [
   {

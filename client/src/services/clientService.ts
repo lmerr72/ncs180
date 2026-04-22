@@ -1,17 +1,19 @@
 import { gql } from "@apollo/client";
 import { apolloClient } from "@/lib/apollo";
-import type { Client, ClientMetadata, OnboardingChecklist, UserProfile } from "@/types/api";
+import type { Client, ClientIntegration, ClientMetadata, OnboardingChecklist, UserProfile } from "@/types/api";
 import { createAuditLogEntry } from "@/services/auditLogService";
 import { AuthProvider } from "@/context/AuthContext";
 
-export type GraphqlClientStatus = "ACTIVE" | "INACTIVE" | "PROSPECTING" | "ONBOARDING" | null;
+export type GraphqlClientStatus = "ACTIVE" | "INACTIVE" | "PROSPECTING" | null;
 export type GraphqlProspectStatus =
   | "VERBAL"
   | "NOT_STARTED"
   | "IN_COMMUNICATION"
   | "AWAITING_REVIEW"
+  | "ONBOARDING"
   | "CLOSED"
   | null;
+export type GraphqlClientIntegration = ClientIntegration | null;
 
 export type GraphqlClient = {
   id: string;
@@ -113,14 +115,7 @@ export type CreateProspectServiceInput = CreateClientServiceInput & {
 };
 
 export type UpdateClientMutationData = {
-  updateClient: {
-    id: string;
-    clientId?: string | null;
-    clientStatus?: GraphqlClientStatus;
-    prospectStatus?: GraphqlProspectStatus;
-    onboardingChecklist?: OnboardingChecklist | null;
-    metadata?: ClientMetadata | null;
-  };
+  updateClient: GraphqlClient;
 };
 
 export type UpdateClientMutationVariables = {
@@ -131,6 +126,14 @@ export type UpdateClientMutationVariables = {
     prospectStatus?: Exclude<GraphqlProspectStatus, null>;
     onboardingChecklist?: OnboardingChecklist | null;
     createdClientDate?: Date | string;
+    address?: {
+      address1?: string | null;
+      address2?: string | null;
+      city?: string | null;
+      state?: string | null;
+      zipCode?: string | null;
+    };
+    unitCount?: number;
     metadata?: Partial<ClientMetadata>;
   };
 };
@@ -251,25 +254,10 @@ export const CREATE_PROSPECT_MUTATION = gql`
 export const UPDATE_CLIENT_MUTATION = gql`
   mutation UpdateClient($id: ID!, $input: UpdateClientInput!) {
     updateClient(id: $id, input: $input) {
-      id
-      clientId
-      clientStatus
-      prospectStatus
-      onboardingChecklist {
-        agreement_signed
-        property_list_created
-        ach
-        integration_setup
-        first_file_placed
-      }
-      metadata {
-        prelegal
-        settled_in_full
-        integration
-        tax_campaign
-      }
+      ...ClientFields
     }
   }
+  ${CLIENT_FIELDS}
 `;
 
 function toClientStatus(status?: GraphqlClient["clientStatus"]): Client["clientStatus"] {
@@ -278,8 +266,6 @@ function toClientStatus(status?: GraphqlClient["clientStatus"]): Client["clientS
       return "active";
     case "INACTIVE":
       return "inactive";
-    case "ONBOARDING":
-      return "onboarding";
     case "PROSPECTING":
     default:
       return "prospecting";
@@ -296,6 +282,8 @@ function toProspectStatus(status?: GraphqlClient["prospectStatus"]): Client["pro
       return "in_communication";
     case "AWAITING_REVIEW":
       return "awaiting_review";
+    case "ONBOARDING":
+      return "onboarding";
     case "CLOSED":
     default:
       return "closed";
@@ -305,7 +293,7 @@ function toProspectStatus(status?: GraphqlClient["prospectStatus"]): Client["pro
 const DEFAULT_CLIENT_METADATA: ClientMetadata = {
   prelegal: false,
   settled_in_full: 0,
-  integration: "",
+  integration: null,
   tax_campaign: false
 };
 
@@ -385,7 +373,9 @@ export async function getRepClients(assignedRepId: string): Promise<Client[]> {
 
 export async function getProspectClients(): Promise<Client[]> {
   const clients = await getClients();
-  return clients.filter((client) => client.clientStatus === "prospecting");
+  return clients.filter((client) =>
+    client.clientStatus === "prospecting" || client.prospectStatus === "onboarding"
+  );
 }
 
 export async function createClient(input: CreateClientServiceInput, author:string, repId: string): Promise<Client> {
@@ -443,7 +433,7 @@ export async function updateClient(
   input: UpdateClientMutationVariables["input"],
   repId: string,
   auditMessage: string,
-): Promise<UpdateClientMutationData["updateClient"]> {
+): Promise<Client> {
   const response = await apolloClient.mutate<UpdateClientMutationData, UpdateClientMutationVariables>({
     mutation: UPDATE_CLIENT_MUTATION,
     variables: {
@@ -465,5 +455,5 @@ export async function updateClient(
     type: "update"
   });
 
-  return updatedClient;
+  return normalizeClient(updatedClient);
 }

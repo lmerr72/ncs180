@@ -1,4 +1,5 @@
 import { Activity, BriefcaseBusiness, Sparkles, UserRound } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { formatCompactNumber, formatCurrency, formatMonthYear, timeAgo } from "@/helpers/formatters";
 
 export type ApolloSnapshotResponse = {
@@ -42,11 +43,15 @@ export type ApolloSnapshotResponse = {
 type ApolloAccountSnapshotProps = {
   snapshot: ApolloSnapshotResponse | null;
   statusMessage: string | null;
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
 };
 
 export function ApolloAccountSnapshot({
   snapshot,
   statusMessage,
+  enabled,
+  onToggle,
 }: ApolloAccountSnapshotProps) {
   return (
     <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
@@ -55,13 +60,19 @@ export function ApolloAccountSnapshot({
           <Sparkles className="w-4 h-4 text-primary" />
           <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Apollo Account Snapshot</h2>
         </div>
-        {snapshot?.owner && (
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border bg-background text-xs text-muted-foreground">
-            <UserRound className="w-3.5 h-3.5 text-primary" />
-            <span className="font-semibold text-foreground">{snapshot.owner.name}</span>
-            {snapshot.owner.title && <span>{snapshot.owner.title}</span>}
-          </div>
-        )}
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {snapshot?.owner && enabled && (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border bg-background text-xs text-muted-foreground">
+              <UserRound className="w-3.5 h-3.5 text-primary" />
+              <span className="font-semibold text-foreground">{snapshot.owner.name}</span>
+              {snapshot.owner.title && <span>{snapshot.owner.title}</span>}
+            </div>
+          )}
+          <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+            <span>Apollo</span>
+            <Switch checked={enabled} onCheckedChange={onToggle} aria-label="Toggle Apollo account snapshot" />
+          </label>
+        </div>
       </div>
 
       {statusMessage ? (

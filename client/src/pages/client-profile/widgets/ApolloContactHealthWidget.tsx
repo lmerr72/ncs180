@@ -1,4 +1,5 @@
 import { Sparkles } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 export type ApolloContactHealthEntry = {
@@ -28,6 +29,8 @@ type ApolloContactHealthWidgetProps = {
   entries: ApolloContactHealthEntry[];
   loading: boolean;
   error: string | null;
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
   contactsMissingEmail: number;
   contactsMissingPhone: number;
   contactsMissingLinkedIn: number;
@@ -39,6 +42,8 @@ export function ApolloContactHealthWidget({
   entries,
   loading,
   error,
+  enabled,
+  onToggle,
   contactsMissingEmail,
   contactsMissingPhone,
   contactsMissingLinkedIn,
@@ -46,12 +51,20 @@ export function ApolloContactHealthWidget({
 }: ApolloContactHealthWidgetProps) {
   return (
     <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-      <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center gap-2">
-        <Sparkles className="w-4 h-4 text-primary" />
-        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Contact Health</h2>
+      <div className="px-6 py-4 border-b border-border/50 bg-muted/20 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-primary" />
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Contact Health</h2>
+        </div>
+        <label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+          <span>Apollo</span>
+          <Switch checked={enabled} onCheckedChange={onToggle} aria-label="Toggle Apollo contact health" />
+        </label>
       </div>
 
-      {loading ? (
+      {!enabled ? (
+        <div className="px-6 py-8 text-sm text-muted-foreground">Turn on Apollo to check contact coverage.</div>
+      ) : loading ? (
         <div className="px-6 py-8 text-sm text-muted-foreground">Checking Apollo contact coverage...</div>
       ) : error ? (
         <div className="px-6 py-8 text-sm text-destructive">{error}</div>

@@ -1,5 +1,20 @@
 import { FileText, Pencil } from "lucide-react";
-import type { ClientMetadata } from "@/types/api";
+import type { ClientIntegration, ClientMetadata } from "@/types/api";
+
+const CLIENT_INTEGRATION_OPTIONS: ClientIntegration[] = [
+  "YARDI",
+  "ENTRATA",
+  "ONESITE",
+  "RESMAN",
+  "RENT_MANAGER",
+];
+
+function formatIntegrationLabel(value: ClientIntegration) {
+  return value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 type ClientMetadataWidgetProps = {
   metadata: ClientMetadata;
@@ -101,14 +116,22 @@ export function ClientMetadataWidget({
         <label className="rounded-2xl border border-border bg-muted/10 p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Integration</p>
           {editing ? (
-            <input
-              type="text"
-              value={metadata.integration}
-              onChange={(event) => onChange("integration", event.target.value)}
+            <select
+              value={metadata.integration ?? ""}
+              onChange={(event) => onChange("integration", event.target.value ? event.target.value as ClientIntegration : null)}
               className="mt-2 w-full rounded-lg border-2 border-border bg-background px-3 py-2 text-sm font-semibold text-foreground focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
-            />
+            >
+              <option value="">No integration</option>
+              {CLIENT_INTEGRATION_OPTIONS.map((integrationOption) => (
+                <option key={integrationOption} value={integrationOption}>
+                  {formatIntegrationLabel(integrationOption)}
+                </option>
+              ))}
+            </select>
           ) : (
-            <p className="mt-2 text-lg font-display font-semibold text-foreground">{metadata.integration || "—"}</p>
+            <p className="mt-2 text-lg font-display font-semibold text-foreground">
+              {metadata.integration ? formatIntegrationLabel(metadata.integration) : "—"}
+            </p>
           )}
         </label>
 

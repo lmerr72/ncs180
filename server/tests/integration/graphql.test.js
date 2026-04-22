@@ -44,12 +44,41 @@ describe('POST /graphql', () => {
         },
         prospects: [],
         myClients: [
-          { id: 'my-1', companyName: 'Synergy Properties' },
-          { id: 'my-2', companyName: 'Apex Management' },
-          { id: 'my-3', companyName: 'Summit Housing' }
+          { id: 'my-1', companyName: 'Apex Properties' },
+          { id: 'my-2', companyName: 'Bell Management' },
+          { id: 'my-3', companyName: 'Cascade Housing' }
         ]
       }
     });
+  });
+
+  it('returns one seeded task for each company', async () => {
+    const app = await createApp({
+      dataStore: createMockDataStore()
+    });
+    const response = await request(app)
+      .post('/graphql')
+      .send({
+        query: `
+          query SeedTasks {
+            gordonTasks: tasks(repId: "client-rep-002") {
+              clientId
+            }
+            heathTasks: tasks(repId: "client-rep-005") {
+              clientId
+            }
+          }
+        `
+      });
+
+    const taskClientIds = [
+      ...response.body.data.gordonTasks,
+      ...response.body.data.heathTasks
+    ].map((task) => task.clientId);
+
+    expect(response.statusCode).toBe(200);
+    expect(taskClientIds).toHaveLength(5);
+    expect(taskClientIds.sort()).toEqual(['all-4', 'all-5', 'my-1', 'my-2', 'my-3']);
   });
 
   it('returns seeded contact fields for a client', async () => {
@@ -328,7 +357,7 @@ describe('POST /graphql', () => {
     });
   });
 
-  it('creates a client id and onboarding checklist when a prospect is closed', async () => {
+  it('creates a client id and onboarding checklist when a prospect moves to onboarding', async () => {
     const app = await createApp({
       dataStore: createMockDataStore()
     });
@@ -337,7 +366,7 @@ describe('POST /graphql', () => {
       .post('/graphql')
       .send({
         query: `
-          mutation CloseProspect($id: ID!, $input: UpdateClientInput!) {
+          mutation MoveProspectToOnboarding($id: ID!, $input: UpdateClientInput!) {
             updateClient(id: $id, input: $input) {
               id
               clientId
@@ -356,7 +385,7 @@ describe('POST /graphql', () => {
         variables: {
           id: 'all-4',
           input: {
-            prospectStatus: 'CLOSED'
+            prospectStatus: 'ONBOARDING'
           }
         }
       });
@@ -365,8 +394,8 @@ describe('POST /graphql', () => {
     expect(response.body.data.updateClient).toMatchObject({
       id: 'all-4',
       clientId: expect.stringMatching(/^CLT-/),
-      clientStatus: 'ONBOARDING',
-      prospectStatus: 'CLOSED',
+      clientStatus: 'ACTIVE',
+      prospectStatus: 'ONBOARDING',
     });
     expect(response.body.data.updateClient.onboardingChecklist).toEqual({
       agreement_signed: false,
@@ -374,6 +403,104 @@ describe('POST /graphql', () => {
       ach: false,
       integration_setup: false,
       first_file_placed: false
+    });
+  });
+
+  it('updates client metadata and allows clearing integration', async () => {
+    const app = await createApp({
+      dataStore: createMockDataStore()
+    });
+
+    const response = await request(app)
+      .post('/graphql')
+      .send({
+        query: `
+          mutation UpdateClientMetadata($id: ID!, $input: UpdateClientInput!) {
+            updateClient(id: $id, input: $input) {
+              id
+              metadata {
+                prelegal
+                settled_in_full
+                integration
+                tax_campaign
+              }
+            }
+          }
+        `,
+        variables: {
+          id: 'my-1',
+          input: {
+            metadata: {
+              prelegal: false,
+              settled_in_full: 42,
+              integration: null,
+              tax_campaign: false
+            }
+          }
+        }
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.updateClient).toEqual({
+      id: 'my-1',
+      metadata: {
+        prelegal: false,
+        settled_in_full: 42,
+        integration: null,
+        tax_campaign: false
+      }
+    });
+  });
+
+  it('updates client information fields through graphql', async () => {
+    const app = await createApp({
+      dataStore: createMockDataStore()
+    });
+
+    const response = await request(app)
+      .post('/graphql')
+      .send({
+        query: `
+          mutation UpdateClientInformation($id: ID!, $input: UpdateClientInput!) {
+            updateClient(id: $id, input: $input) {
+              id
+              unitCount
+              address {
+                address1
+                address2
+                city
+                state
+                zipCode
+              }
+            }
+          }
+        `,
+        variables: {
+          id: 'my-1',
+          input: {
+            unitCount: 4321,
+            address: {
+              address1: '123 Main St',
+              address2: 'Suite 400',
+              city: 'Denver',
+              state: 'CO',
+              zipCode: '80205'
+            }
+          }
+        }
+      });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.updateClient).toEqual({
+      id: 'my-1',
+      unitCount: 4321,
+      address: {
+        address1: '123 Main St',
+        address2: 'Suite 400',
+        city: 'Denver',
+        state: 'CO',
+        zipCode: '80205'
+      }
     });
   });
 

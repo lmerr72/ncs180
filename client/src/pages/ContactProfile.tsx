@@ -184,8 +184,8 @@ export default function ContactProfile() {
 
   const fromClientId = searchParams.get("fromClientId");
   const fromClientName = searchParams.get("fromClientName");
-  const backHref = fromClientId ? `/clients/${fromClientId}` : "/all-clients";
-  const backLabel = fromClientName ? fromClientName : "All Clients";
+  const backHref = fromClientId ? `/clients/${fromClientId}` : "/clients";
+  const backLabel = fromClientName ? fromClientName : "Clients";
   const initials = getInitials(contact?.firstName ?? "",contact?.lastName ?? "");
   const avatarColor = getAvatarColor(initials);
   const linkedInCallbackError = searchParams.get("linkedin_error");
@@ -321,8 +321,8 @@ export default function ContactProfile() {
       <AppLayout>
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <p className="text-2xl font-bold text-foreground">Contact not found</p>
-          <Link to="/all-clients" className="text-primary hover:underline text-sm font-medium">
-            Back to All Clients
+          <Link to="/clients" className="text-primary hover:underline text-sm font-medium">
+            Back to Clients
           </Link>
         </div>
       </AppLayout>

@@ -11,6 +11,6 @@ export const US_STATES = [
     "Wisconsin","Wyoming",
   ];
 
-  export const ProspectStatuses:ProspectStatus[] = [ 'not_started' , 'in_communication' , 'awaiting_review'  , 'verbal' , 'closed'];
+  export const ProspectStatuses:ProspectStatus[] = [ 'not_started' , 'in_communication' , 'awaiting_review' , 'verbal' , 'onboarding' , 'closed'];
 
   export const ImportanceOptions: Importance[] = ['HIGH','MEDIUM','LOW']

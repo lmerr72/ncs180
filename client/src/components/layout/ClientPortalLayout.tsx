@@ -10,10 +10,13 @@ import {
   LogOut,
   UserCircle2,
   Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +25,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { CollapsibleSidebarNavItem } from "@/components/layout/CollapsibleSidebarNavItem";
+import { useSidebarCollapsed } from "@/components/layout/useSidebarCollapsed";
 
 function Arrow180Logo({ className }: { className?: string }) {
   return (
@@ -42,6 +47,7 @@ export function ClientPortalLayout({ children }: ClientPortalLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { collapsed, setCollapsed } = useSidebarCollapsed();
 
   const navItems = [
     { href: "/client/dashboard", label: "Dashboard",  icon: LayoutDashboard  },
@@ -64,68 +70,109 @@ export function ClientPortalLayout({ children }: ClientPortalLayoutProps) {
     "Menu";
 
   return (
-    <div className="flex h-screen w-full bg-slate-50/50">
+    <TooltipProvider delayDuration={150}>
+      <div className="flex h-screen w-full bg-slate-50/50">
       {/* Sidebar */}
-      <aside className="hidden md:flex w-64 flex-shrink-0 bg-sidebar border-r border-sidebar-border flex-col transition-all duration-300 relative z-20 shadow-xl shadow-sidebar/10">
+      <aside
+        className={cn(
+          "relative z-20 hidden flex-shrink-0 flex-col border-r border-sidebar-border bg-sidebar shadow-xl shadow-sidebar/10 transition-all duration-300 md:flex",
+          collapsed ? "w-20" : "w-64"
+        )}
+      >
         {/* Logo */}
-        <div className="h-16 flex items-center px-6 border-b border-sidebar-border/50">
-          <div className="flex items-center gap-2 text-sidebar-primary">
-            <div className="bg-primary/20 p-1.5 rounded-lg border border-primary/30">
+        <div
+          className={cn(
+            "flex h-16 items-center border-b border-sidebar-border/50",
+            collapsed ? "justify-center px-3" : "justify-between px-5"
+          )}
+        >
+          <div className={cn("flex items-center text-sidebar-primary", collapsed ? "justify-center" : "gap-2")}>
+            <div className="rounded-lg border border-primary/30 bg-primary/20 p-1.5">
               <Arrow180Logo className="w-5 h-5 text-primary" />
             </div>
-            <div>
-              <span className="font-display font-bold text-xl tracking-tight text-white">NCS 180</span>
-              <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider text-primary/70 bg-primary/10 px-1.5 py-0.5 rounded">
-                Client
-              </span>
-            </div>
+            {!collapsed ? (
+              <div>
+                <span className="font-display text-xl font-bold tracking-tight text-white">NCS 180</span>
+                <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary/70">
+                  Client
+                </span>
+              </div>
+            ) : null}
           </div>
+          <Button
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={cn(
+              "border-sidebar-border bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-accent/80 hover:text-sidebar-foreground",
+              collapsed ? "absolute -right-4 top-5 h-8 w-8 rounded-full border shadow-lg" : "h-9 w-9"
+            )}
+            onClick={() => setCollapsed(!collapsed)}
+            size="icon"
+            type="button"
+            variant="outline"
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </Button>
         </div>
 
         {/* Nav */}
-        <div className="flex-1 overflow-y-auto py-6 px-3 flex flex-col gap-1.5">
-          <div className="px-3 mb-2 text-xs font-semibold text-sidebar-foreground/40 uppercase tracking-wider">
-            Menu
-          </div>
+        <div className={cn("flex flex-1 flex-col overflow-y-auto py-6", collapsed ? "px-2" : "px-3")}>
+          {!collapsed ? (
+            <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+              Menu
+            </div>
+          ) : null}
           {navItems.map((item) => {
             const isActive = location.pathname === item.href || location.pathname.startsWith(item.href + "/");
             return (
-              <NavLink key={item.href} to={item.href} className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group text-sm font-medium",
-                isActive
-                  ? "bg-sidebar-primary/10 text-sidebar-primary"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-              )}>
-                <item.icon className={cn(
-                  "w-5 h-5 transition-colors",
-                  isActive ? "text-sidebar-primary" : "text-sidebar-foreground/50 group-hover:text-sidebar-foreground"
-                )} />
-                {item.label}
-              </NavLink>
+              <CollapsibleSidebarNavItem
+                collapsed={collapsed}
+                icon={item.icon}
+                isActive={isActive}
+                key={item.href}
+                label={item.label}
+                to={item.href}
+              />
             );
           })}
         </div>
 
         {/* Bottom — user + logout */}
-        <div className="p-4 border-t border-sidebar-border/50 flex flex-col gap-1">
+        <div className={cn("flex flex-col gap-1 border-t border-sidebar-border/50 p-4", collapsed ? "px-2" : "px-4")}>
           {/* User card */}
-          <div className="flex items-center gap-3 px-3 py-2.5 mb-1">
-            <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
+          <div className={cn("mb-1 flex items-center px-3 py-2.5", collapsed ? "justify-center" : "gap-3")}>
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/20">
               <span className="text-xs font-bold text-primary">{initials}</span>
             </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-white truncate">{fullName}</p>
-              <p className="text-[11px] text-sidebar-foreground/40 truncate capitalize">{user?.role?.replace("_", " ")}</p>
-            </div>
+            {!collapsed ? (
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-white">{fullName}</p>
+                <p className="truncate text-[11px] capitalize text-sidebar-foreground/40">{user?.role?.replace("_", " ")}</p>
+              </div>
+            ) : null}
           </div>
 
-          <button
-            onClick={handleLogout}
-            className="flex w-full items-center gap-3 px-3 py-2.5 rounded-xl text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive transition-all duration-200 group text-sm font-medium"
-          >
-            <LogOut className="w-5 h-5 text-sidebar-foreground/50 group-hover:text-destructive transition-colors" />
-            Logout
-          </button>
+          {collapsed ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label="Logout"
+                  className="group flex w-full items-center justify-center rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/70 transition-all duration-200 hover:bg-destructive/10 hover:text-destructive"
+                  onClick={handleLogout}
+                >
+                  <LogOut className="h-5 w-5 text-sidebar-foreground/50 transition-colors group-hover:text-destructive" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">Logout</TooltipContent>
+            </Tooltip>
+          ) : (
+            <button
+              onClick={handleLogout}
+              className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/70 transition-all duration-200 hover:bg-destructive/10 hover:text-destructive"
+            >
+              <LogOut className="h-5 w-5 text-sidebar-foreground/50 transition-colors group-hover:text-destructive" />
+              Logout
+            </button>
+          )}
         </div>
       </aside>
 
@@ -215,6 +262,7 @@ export function ClientPortalLayout({ children }: ClientPortalLayoutProps) {
           </div>
         </div>
       </main>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

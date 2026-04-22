@@ -30,7 +30,7 @@ function SalesRepRouter() {
     <Routes>
       <Route path="/" element={<Dashboard />} />
       <Route path="/my-clients" element={<MyClients />} />
-      <Route path="/all-clients" element={<AllClients />} />
+      <Route path="/clients" element={<AllClients />} />
       <Route path="/clients/:id" element={<ClientProfile />} />
       <Route path="/calendar" element={<CalendarPage />} />
       <Route path="/profile" element={<Profile />} />

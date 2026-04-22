@@ -5,7 +5,7 @@ import { ClientStatus } from "@/types/api";
 import { Check, CircleOff, X } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { STATUS_CONFIG } from "./constants";
+import { STATUS_CONFIG } from "../constants";
 
 type InactiveReason = "Moved to another company" | "Integration issues" | "Not a good fit" | "Other";
 
@@ -63,7 +63,7 @@ export function StatusModal({
             {/* Status radio options */}
             <div className="space-y-2.5">
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select Status</p>
-              {(["active", "onboarding", "prospecting", "inactive"] as ClientStatus[]).map(s => {
+              {(["active", "prospecting", "inactive"] as ClientStatus[]).map(s => {
                 const cfg = STATUS_CONFIG[s];
                 const Icon = cfg.icon;
                 const isChosen = selected === s;
@@ -99,7 +99,6 @@ export function StatusModal({
                       <p className="text-xs text-muted-foreground">
                         {s === "active" && "Client is actively engaged and placing"}
                         {s === "prospecting" && "Client is in early-stage outreach"}
-                        {s === "onboarding" && "Client is in the process of onboarding"}
                         {s === "inactive" && "Client has stopped activity — requires reason"}
                       </p>
                     </div>

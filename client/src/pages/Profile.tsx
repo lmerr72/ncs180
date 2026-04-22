@@ -58,16 +58,17 @@ export default function Profile() {
     <AppLayout>
       <div className="max-w-4xl mx-auto pb-12">
         {/* Header Banner */}
-        <div className="relative h-48 md:h-64 rounded-3xl overflow-hidden mb-24 shadow-lg border border-border/50">
-          <img 
-            src={`${import.meta.env.BASE_URL}images/profile-banner.png`} 
-            alt="Profile background" 
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
-          
+        <div className="relative mb-24">
+          <div className="relative h-48 md:h-64 rounded-3xl overflow-hidden shadow-lg border border-border/50 bg-gradient-to-br from-sidebar to-primary/80">
+            <div
+              className="absolute inset-0 opacity-10"
+              style={{ backgroundImage: "radial-gradient(circle at 30% 50%, white 1px, transparent 1px)", backgroundSize: "24px 24px" }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/35 to-transparent"></div>
+          </div>
+
           {/* Avatar overlapped over bottom edge */}
-          <div className="absolute -bottom-16 left-8 md:left-12 flex items-end gap-6">
+          <div className="absolute left-8 bottom-0 translate-y-1/2 md:left-12 flex items-end gap-6">
             <div className="relative group">
               <div className="w-32 h-32 rounded-full bg-primary flex items-center justify-center text-4xl font-display font-bold text-primary-foreground border-4 border-background shadow-xl">
                 {user?.initials ?? initials}

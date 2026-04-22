@@ -2,7 +2,7 @@ import { gql } from "@apollo/client";
 import { apolloClient } from "@/lib/apollo";
 import { createBrowserLogger } from "@/lib/logger";
 
-type GraphqlClientStatus = "ACTIVE" | "INACTIVE" | "PROSPECTING" | "ONBOARDING" | null;
+type GraphqlClientStatus = "ACTIVE" | "INACTIVE" | "PROSPECTING" | null;
 
 type GraphqlMetricsClient = {
   id: string;
@@ -124,7 +124,7 @@ function countInactiveClients(clients: GraphqlMetricsClient[]): number {
   cutoff.setFullYear(cutoff.getFullYear() - 1);
 
   return clients.filter((client) => {
-    if (client.clientStatus === "PROSPECTING" || client.clientStatus === "ONBOARDING") {
+    if (client.clientStatus === "PROSPECTING") {
       return false;
     }
 

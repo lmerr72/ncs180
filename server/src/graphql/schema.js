@@ -71,6 +71,14 @@ const typeDefs = `
     OTHER
   }
 
+  enum ClientIntegration {
+    YARDI
+    ENTRATA
+    ONESITE
+    RESMAN
+    RENT_MANAGER
+  }
+
   enum Importance {
     LOW
     MEDIUM
@@ -92,6 +100,7 @@ const typeDefs = `
     importance: Importance!
     dueDate: String!
     completed: Boolean!
+    automated: Boolean!
     commType: TaskCommType
     client: Client
   }
@@ -100,7 +109,6 @@ const typeDefs = `
     ACTIVE
     INACTIVE
     PROSPECTING
-    ONBOARDING
   }
 
   enum ProspectStatus {
@@ -108,6 +116,7 @@ const typeDefs = `
     NOT_STARTED
     IN_COMMUNICATION
     AWAITING_REVIEW
+    ONBOARDING
     CLOSED
   }
 
@@ -124,6 +133,14 @@ const typeDefs = `
     address2:String
     city:String!
     state:String!
+    zipCode:String
+  }
+
+  input UpdateAddressInput {
+    address1:String
+    address2:String
+    city:String
+    state:String
     zipCode:String
   }
 
@@ -171,6 +188,7 @@ const typeDefs = `
     importance: Importance!
     dueDate: String!
     completed: Boolean
+    automated: Boolean
     commType: TaskCommType
   }
 
@@ -178,13 +196,15 @@ const typeDefs = `
     clientStatus: ClientStatus
     prospectStatus: ProspectStatus
     createdClientDate: String
+    address: UpdateAddressInput
+    unitCount: Int
     metadata: ClientMetadataInput
   }
 
   input ClientMetadataInput {
     prelegal: Boolean
     settled_in_full: Float
-    integration: String
+    integration: ClientIntegration
     tax_campaign: Boolean
   }
 
@@ -196,6 +216,7 @@ const typeDefs = `
     importance: Importance
     dueDate: String
     completed: Boolean
+    automated: Boolean
     commType: TaskCommType
   }
 
@@ -235,7 +256,7 @@ const typeDefs = `
   type ClientMetadata {
     prelegal: Boolean!
     settled_in_full: Float!
-    integration: String
+    integration: ClientIntegration
     tax_campaign: Boolean!
   }
 

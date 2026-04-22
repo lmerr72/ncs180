@@ -85,8 +85,8 @@ export default function SalesRepProfile() {
       <AppLayout>
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <p className="text-2xl font-bold text-foreground">Rep not found</p>
-          <Link to="/all-clients" className="text-primary hover:underline text-sm font-medium">
-            ← Back to All Clients
+          <Link to="/clients" className="text-primary hover:underline text-sm font-medium">
+            ← Back to Clients
           </Link>
         </div>
       </AppLayout>
@@ -96,10 +96,10 @@ export default function SalesRepProfile() {
   const initials = ("initials" in rep && rep.initials) ? rep.initials : `${rep.firstName[0] ?? ""}${rep.lastName[0] ?? ""}`;
   const email = ("email" in rep && rep.email) ? rep.email : undefined;
   const avatarColor = getAvatarColor(initials);
-  const backHref = fromParam ? `/${fromParam}` : "/all-clients";
+  const backHref = fromParam ? `/${fromParam}` : "/clients";
   const backLabel = fromParam
     ? fromParam.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ")
-    : "All Clients";
+    : "Clients";
   const clientRows: RepAccountRow[] = allClients
     .filter((client) => client.assignedRepId === rep.id)
     .map((client) => ({
@@ -188,32 +188,35 @@ export default function SalesRepProfile() {
         {/* Profile card */}
         <div className="mb-4 bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
           {/* Banner */}
-          <div className="h-36 bg-gradient-to-br from-sidebar to-primary/80 relative">
-            <div className="absolute inset-0 opacity-10"
+          <div className="relative h-56 bg-gradient-to-br from-sidebar to-primary/80">
+            <div
+              className="absolute inset-0 opacity-10"
               style={{ backgroundImage: "radial-gradient(circle at 30% 50%, white 1px, transparent 1px)", backgroundSize: "24px 24px" }}
             />
+
+            <div className="absolute inset-x-0 bottom-0 px-8 pb-6">
+              <div className="flex items-end gap-5">
+                <div className={cn(
+                  "w-32 h-32 rounded-full flex items-center justify-center text-3xl font-display font-bold border-4 border-background shadow-xl flex-shrink-0",
+                  avatarColor
+                )}>
+                  {initials}
+                </div>
+                <div className="pb-4 text-white drop-shadow-md">
+                  <h1 className="text-2xl font-display font-bold leading-tight">
+                    {rep.firstName} {rep.lastName}
+                  </h1>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-sm text-white/85">
+                    <ShieldCheck className="w-3.5 h-3.5 text-white" />
+                    {rep.title}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Avatar overlapping banner */}
-          <div className="px-8 pb-6">
-            <div className="-mt-14 mb-4 flex gap-5">
-              <div className={cn(
-                "w-24 h-24 rounded-full flex items-center justify-center text-2xl font-display font-bold border-4 border-background shadow-xl flex-shrink-0",
-                avatarColor
-              )}>
-                  {initials}
-              </div>
-              <div className="pt-14">
-                <h1 className="text-2xl font-display font-bold text-foreground leading-tight">
-                  {rep.firstName} {rep.lastName}
-                </h1>
-                <p className="text-muted-foreground text-sm flex items-center gap-1.5 mt-0.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-primary" />
-                  {rep.title}
-                </p>
-              </div>
-            </div>
-
+          <div className="px-8 pb-6 pt-6">
             {/* Details grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
               <div className="bg-muted/30 rounded-xl p-4 border border-border/50 flex items-start gap-3">

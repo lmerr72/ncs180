@@ -55,7 +55,11 @@ export default function AllClients() {
     async function loadClients() {
       const clients = await getClients();
       if (!ignore) {
-        setAllClients(clients);
+        setAllClients(
+          clients.filter((client) =>
+            client.clientStatus !== "prospecting" && client.prospectStatus !== "onboarding"
+          )
+        );
       }
     }
 
@@ -249,7 +253,7 @@ export default function AllClients() {
 
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">All Clients</h1>
+          <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">Clients</h1>
           <p className="text-muted-foreground mt-1 text-lg">Directory of all active accounts across the sales team.</p>
         </div>
         <button
@@ -350,7 +354,7 @@ export default function AllClients() {
                   <tr key={client.id} className="hover:bg-muted/20 transition-colors group">
                     <td className="px-6 py-4">
                       <Link
-                        to={`/clients/${client.id}?from=all-clients`}
+                        to={`/clients/${client.id}?from=clients`}
                         state={{ client }}
                         className="font-bold text-foreground text-base hover:text-primary hover:underline transition-colors"
                       >
@@ -376,7 +380,7 @@ export default function AllClients() {
                     <td className="px-6 py-4 text-center">
                       <div className="flex justify-center relative group/tooltip">
                         <Link
-                          to={`/rep/${client.assignedRepId}?from=all-clients`}
+                          to={`/rep/${client.assignedRepId}?from=clients`}
                           className={cn("w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 shadow-sm transition-all hover:scale-110 hover:ring-2 hover:ring-primary/40", avatarColorClass)}
                         >
                           {repInitials}

@@ -10,7 +10,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Building2, MapPin, Hash, Users, BarChart2, TrendingUp, Percent,
+  Building2, Users, BarChart2, Percent,
   Globe, Phone, ExternalLink, UserPlus, X,
   Clock, Check, ChevronDown,
   BriefcaseBusiness, Sparkles, Pencil, Trash2,
@@ -23,26 +23,31 @@ import type { AuditEntry, Client, ClientMetadata, Importance, Note, OnboardingCh
 import type { ExtendedTask } from "@/services/taskService";
 import { ClientStatus,TaskType } from "@/types/api";
 import { MOCK_CONTACTS } from "@/data/mock_contacts";
-import { formatLabel, formatMonthYear, getInitials } from "@/helpers/formatters";
+import { formatLabel, getInitials } from "@/helpers/formatters";
 import { useAuth } from "@/context/AuthContext";
-import { OnboardingWidget } from "./OnboardingWidget";
+import { OnboardingWidget } from "./widgets/OnboardingWidget";
+import { IntegrationHealthWidget } from "./widgets/IntegrationHealthWidget";
 import { STATUS_CONFIG } from "./constants";
 import NotesWidget from "@/components/shared/NotesWidget";
 import AuditLogWidget from "@/components/shared/AuditLogWidget";
 import { CopyableEmail } from "@/components/shared/CopyableEmail";
 import OutlookEmailWidget from "@/components/shared/OutlookEmailWidget";
-import { StatusModal } from "./StatusModal";
-import { AddTaskModal } from "./AddTaskModal";
-import { AccountHistoryWidget, type HistoryEntry } from "./AccountHistoryWidget";
-import { ApolloAccountSnapshot, type ApolloSnapshotResponse } from "./ApolloAccountSnapshot";
-import { ApolloContactHealthWidget, type ApolloContactHealthEntry, type ApolloContactHealthResponse } from "./ApolloContactHealthWidget";
-import { ApolloContactsWizard, type ApolloContactWizardCandidate } from "./ApolloContactsWizard";
-import { ClientMetadataWidget } from "./ClientMetadataWidget";
-import { DeleteContactConfirmModal } from "./DeleteContactConfirmModal";
-import { EditContactModal, type EditableContactForm } from "./EditContactModal";
-import { ClientPlacementMetricsWidget } from "./ClientPlacementMetricsWidget";
-import { ClientReportingStats } from "./ClientReportingStats";
-import { RelatedTasksWidget } from "./RelatedTasksWidget";
+import { StatusModal } from "./modals/StatusModal";
+import { AddTaskModal } from "./modals/AddTaskModal";
+import { AccountHistoryWidget, type HistoryEntry } from "./widgets/AccountHistoryWidget";
+import { ApolloAccountSnapshot, type ApolloSnapshotResponse } from "./widgets/ApolloAccountSnapshot";
+import { ApolloContactHealthWidget, type ApolloContactHealthEntry, type ApolloContactHealthResponse } from "./widgets/ApolloContactHealthWidget";
+import { ApolloContactsWizard, type ApolloContactWizardCandidate } from "./modals/ApolloContactsWizard";
+import { EditClientInformationModal, type EditableClientInformationForm } from "./modals/EditClientInformationModal";
+import { ClientMetadataWidget } from "./widgets/ClientMetadataWidget";
+import { ClientInformationWidget } from "./widgets/ClientInformationWidget";
+import { DeleteContactConfirmModal } from "./modals/DeleteContactConfirmModal";
+import { EditContactModal, type EditableContactForm } from "./modals/EditContactModal";
+import { ClientPlacementMetricsWidget } from "./widgets/ClientPlacementMetricsWidget";
+import { ClientPortfolioHierarchy } from "./widgets/ClientPortfolioHierarchy";
+import { ClientReportingStats } from "./widgets/ClientReportingStats";
+import { ClientReportingTable } from "./ClientReportingTable";
+import { RelatedTasksWidget } from "./widgets/RelatedTasksWidget";
 import {
   CLIENT_CONTACTS_QUERY,
   type ClientContactsQueryData,
@@ -92,15 +97,33 @@ type ApolloCompanyContactsResponse = {
 const DEFAULT_CLIENT_METADATA: ClientMetadata = {
   prelegal: false,
   settled_in_full: 0,
-  integration: "",
+  integration: null,
   tax_campaign: false,
 };
+
+function formatMetadataAuditValue(field: keyof ClientMetadata, value: ClientMetadata[keyof ClientMetadata]) {
+  if (field === "integration") {
+    if (typeof value !== "string" || value.length === 0) return "No integration";
+
+    return value
+      .replace(/_/g, " ")
+      .toLowerCase()
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "Yes" : "No";
+  }
+
+  return String(value);
+}
 
 const PROSPECT_STATUS_CONFIG: Record<Exclude<ProspectStatus, "inactive">, { badge: string; dot: string }> = {
   not_started:      { badge: "bg-slate-100 text-slate-700 border border-slate-200",           dot: "bg-slate-500" },
   in_communication: { badge: "bg-sky-100 text-sky-700 border border-sky-200",                 dot: "bg-sky-500" },
   awaiting_review:  { badge: "bg-violet-100 text-violet-700 border border-violet-200",        dot: "bg-violet-500" },
   verbal:           { badge: "bg-emerald-100 text-emerald-700 border border-emerald-200",     dot: "bg-emerald-500" },
+  onboarding:       { badge: "bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200",     dot: "bg-fuchsia-500" },
   closed:           { badge: "bg-amber-100 text-amber-700 border border-amber-200",           dot: "bg-amber-500" },
 };
 const PROSPECT_STATUS_OPTIONS = ProspectStatuses as Exclude<ProspectStatus, "inactive">[];
@@ -169,10 +192,41 @@ function toProspectStatusEnum(status: Exclude<ProspectStatus, "inactive">) {
       return "AWAITING_REVIEW";
     case "verbal":
       return "VERBAL";
+    case "onboarding":
+      return "ONBOARDING";
     case "closed":
     default:
       return "CLOSED";
   }
+}
+
+function getDisplayStatus(
+  clientStatus: ClientStatus | null | undefined,
+  prospectStatus: ProspectStatus | null | undefined,
+): ClientStatus {
+  if (prospectStatus === "onboarding") {
+    return "onboarding";
+  }
+
+  return clientStatus ?? "active";
+}
+
+function isPipelineStatus(
+  clientStatus: ClientStatus | null | undefined,
+  prospectStatus: ProspectStatus | null | undefined,
+): boolean {
+  return clientStatus === "prospecting" || prospectStatus === "onboarding";
+}
+
+function createClientInformationForm(client: Client | null): EditableClientInformationForm {
+  return {
+    unitCount: client?.unitCount?.toString() ?? "0",
+    address1: client?.address?.address1 ?? "",
+    address2: client?.address?.address2 ?? "",
+    city: client?.address?.city ?? "",
+    state: client?.address?.state ?? "",
+    zipCode: client?.address?.zipCode ?? "",
+  };
 }
 
 
@@ -196,8 +250,8 @@ export default function ClientProfile() {
 
   const fromMyClients = from === "my-clients";
   const fromPipeline = from === "pipeline";
-  const originLabel = fromPipeline ? "Pipeline" : fromMyClients ? "My Clients" : "All Clients";
-  const originHref = fromPipeline ? "/pipeline" : fromMyClients ? "/my-clients" : "/all-clients";
+  const originLabel = fromPipeline ? "Pipeline" : fromMyClients ? "My Clients" : "Clients";
+  const originHref = fromPipeline ? "/pipeline" : fromMyClients ? "/my-clients" : "/clients";
 
   const routeState = location.state as { client?: Client; prospect?: Client } | null;
   const routeStateClient = routeState?.client ?? routeState?.prospect ?? null;
@@ -217,7 +271,9 @@ export default function ClientProfile() {
     skip: !client?.id
   });
   // Status state
-  const [status, setStatus] = useState<ClientStatus>(client?.clientStatus ?? "active"); // hippo replace default with laoder when client isnt ready
+  const [status, setStatus] = useState<ClientStatus>(
+    getDisplayStatus(client?.clientStatus, client?.prospectStatus)
+  ); // hippo replace default with laoder when client isnt ready
   const [displayClientId, setDisplayClientId] = useState(client?.clientId ?? "");
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [prospectStatus, setProspectStatus] = useState<Exclude<ProspectStatus, "inactive">>(
@@ -232,12 +288,19 @@ export default function ClientProfile() {
   });
   const [metadataSaving, setMetadataSaving] = useState(false);
   const [metadataEditing, setMetadataEditing] = useState(false);
+  const [clientInformationForm, setClientInformationForm] = useState<EditableClientInformationForm>(
+    createClientInformationForm(client)
+  );
+  const [clientInformationSaving, setClientInformationSaving] = useState(false);
+  const [showClientInformationModal, setShowClientInformationModal] = useState(false);
   const [showProspectStatusDropdown, setShowProspectStatusDropdown] = useState(false);
   const [prospectStatusSaving, setProspectStatusSaving] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const [apolloSnapshot, setApolloSnapshot] = useState<ApolloSnapshotResponse | null>(null);
   const [apolloLoading, setApolloLoading] = useState(false);
   const [apolloError, setApolloError] = useState<string | null>(null);
+  const [apolloSnapshotEnabled, setApolloSnapshotEnabled] = useState(false);
+  const apolloSnapshotAbortRef = useRef<AbortController | null>(null);
 
   // Assigned rep state
   const [assignedRep, setAssignedRep] = useState(initialAssignedRep);
@@ -339,14 +402,14 @@ export default function ClientProfile() {
   }, [showProspectStatusDropdown]);
 
   useEffect(() => {
-    setStatus(client?.clientStatus ?? "active");
-  }, [client?.clientStatus]);
+    setStatus(getDisplayStatus(client?.clientStatus, client?.prospectStatus));
+  }, [client?.clientStatus, client?.prospectStatus]);
 
   useEffect(() => {
     setAssignedRep(reps.find((rep) => rep.id === client?.assignedRepId) ?? null);
   }, [client?.assignedRepId, reps]);
 
-  const isProspectView = status === "prospecting";
+  const isProspectView = isPipelineStatus(status, prospectStatus);
 
   useEffect(() => {
     if (client?.prospectStatus && client.prospectStatus !== "inactive") {
@@ -369,6 +432,10 @@ export default function ClientProfile() {
     });
   }, [client?.metadata]);
 
+  useEffect(() => {
+    setClientInformationForm(createClientInformationForm(client));
+  }, [client]);
+
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 4000);
@@ -384,12 +451,27 @@ export default function ClientProfile() {
   async function handleSaveMetadata() {
     if (!client?.id || metadataSaving) return;
 
+    const currentMetadata: ClientMetadata = {
+      ...DEFAULT_CLIENT_METADATA,
+      ...(client.metadata ?? {}),
+    };
     const nextMetadata: ClientMetadata = {
       prelegal: metadataForm.prelegal,
       settled_in_full: Number.isFinite(metadataForm.settled_in_full) ? metadataForm.settled_in_full : 0,
-      integration: metadataForm.integration.trim(),
+      integration: metadataForm.integration,
       tax_campaign: metadataForm.tax_campaign,
     };
+    const updatedFields = (Object.keys(nextMetadata) as Array<keyof ClientMetadata>)
+      .filter((field) => currentMetadata[field] !== nextMetadata[field]);
+
+    if (updatedFields.length === 0) {
+      setMetadataEditing(false);
+      return;
+    }
+
+    const auditMessage = `Client metadata updated: ${updatedFields
+      .map((field) => `${field} from ${formatMetadataAuditValue(field, currentMetadata[field])} to ${formatMetadataAuditValue(field, nextMetadata[field])}`)
+      .join("; ")}`;
 
     setMetadataSaving(true);
     try {
@@ -397,7 +479,7 @@ export default function ClientProfile() {
         client.id,
         { metadata: nextMetadata },
         user?.repId ?? "",
-        "Client metadata updated"
+        auditMessage
       );
       const savedMetadata = response.metadata ?? nextMetadata;
 
@@ -416,6 +498,70 @@ export default function ClientProfile() {
       showToast(error instanceof Error ? error.message : "Unable to update client details.");
     } finally {
       setMetadataSaving(false);
+    }
+  }
+
+  async function handleSaveClientInformation() {
+    if (!client?.id || clientInformationSaving) return;
+
+    const nextUnitCount = Math.max(0, Number.parseInt(clientInformationForm.unitCount, 10) || 0);
+    const nextAddress = {
+      address1: clientInformationForm.address1.trim(),
+      address2: clientInformationForm.address2.trim(),
+      city: clientInformationForm.city.trim(),
+      state: clientInformationForm.state.trim(),
+      zipCode: clientInformationForm.zipCode.trim(),
+    };
+    const currentAddress = {
+      address1: client.address?.address1 ?? "",
+      address2: client.address?.address2 ?? "",
+      city: client.address?.city ?? "",
+      state: client.address?.state ?? "",
+      zipCode: client.address?.zipCode ?? "",
+    };
+    const changes: string[] = [];
+
+    if (client.unitCount !== nextUnitCount) {
+      changes.push(`unit count from ${client.unitCount.toLocaleString()} to ${nextUnitCount.toLocaleString()}`);
+    }
+
+    if (JSON.stringify(currentAddress) !== JSON.stringify(nextAddress)) {
+      changes.push("full address updated");
+    }
+
+    if (changes.length === 0) {
+      setShowClientInformationModal(false);
+      return;
+    }
+
+    setClientInformationSaving(true);
+
+    try {
+      const updatedClient = await updateClient(
+        client.id,
+        {
+          unitCount: nextUnitCount,
+          address: nextAddress,
+        },
+        user?.repId ?? "",
+        `Client information updated: ${changes.join("; ")}`
+      );
+
+      setClient(updatedClient);
+      setAllClients((current) =>
+        current.map((entry) => entry.id === updatedClient.id ? { ...entry, ...updatedClient } : entry)
+      );
+      setClientInformationForm(createClientInformationForm(updatedClient));
+      setShowClientInformationModal(false);
+      showToast("Client information updated");
+    } catch (error) {
+      logger.error("Failed to save client information", {
+        clientId: client.id,
+        error,
+      });
+      showToast(error instanceof Error ? error.message : "Unable to update client information.");
+    } finally {
+      setClientInformationSaving(false);
     }
   }
 
@@ -441,10 +587,12 @@ export default function ClientProfile() {
   const [apolloContactHealth, setApolloContactHealth] = useState<ApolloContactHealthResponse | null>(null);
   const [apolloContactHealthLoading, setApolloContactHealthLoading] = useState(false);
   const [apolloContactHealthError, setApolloContactHealthError] = useState<string | null>(null);
+  const [apolloContactHealthEnabled, setApolloContactHealthEnabled] = useState(false);
   const [editingContact, setEditingContact] = useState<EditableContactForm | null>(null);
   const [editContactSaving, setEditContactSaving] = useState(false);
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null);
   const [contactPendingDelete, setContactPendingDelete] = useState<Contact | null>(null);
+  const apolloContactHealthAbortRef = useRef<AbortController | null>(null);
 
   // Account history state
   const [history] = useState<HistoryEntry[]>(SEED_HISTORY);
@@ -472,7 +620,15 @@ export default function ClientProfile() {
     setContacts([]);
   }, [contactsData]);
 
-  useEffect(() => {
+  function resetApolloSnapshot() {
+    apolloSnapshotAbortRef.current?.abort();
+    apolloSnapshotAbortRef.current = null;
+    setApolloSnapshot(null);
+    setApolloError(null);
+    setApolloLoading(false);
+  }
+
+  function fetchApolloSnapshot() {
     if (!client?.companyName) {
       setApolloSnapshot(null);
       setApolloError(null);
@@ -480,7 +636,9 @@ export default function ClientProfile() {
       return;
     }
 
+    apolloSnapshotAbortRef.current?.abort();
     const controller = new AbortController();
+    apolloSnapshotAbortRef.current = controller;
     const params = new URLSearchParams({
       companyName: client.companyName,
     });
@@ -492,38 +650,56 @@ export default function ClientProfile() {
     setApolloLoading(true);
     setApolloError(null);
 
-    // hippo commented out for now to not waste credits
-    // fetch(`/api/apollo/account-snapshot?${params.toString()}`, {
-    //   signal: controller.signal,
-    // })
-    //   .then(async (response) => {
-    //     const payload = await response.json() as ApolloSnapshotResponse;
-    //     if (!response.ok) {
-    //       throw new Error(payload.error ?? "Unable to load Apollo account snapshot.");
-    //     }
+    fetch(`/api/apollo/account-snapshot?${params.toString()}`, {
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        const payload = await response.json() as ApolloSnapshotResponse;
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Unable to load Apollo account snapshot.");
+        }
 
-    //     setApolloSnapshot(payload);
-    //   })
-    //   .catch((error: unknown) => {
-    //     if (controller.signal.aborted) {
-    //       return;
-    //     }
+        setApolloSnapshot(payload);
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) {
+          return;
+        }
 
-    //     setApolloSnapshot(null);
-    //     setApolloError(error instanceof Error ? error.message : "Unable to load Apollo account snapshot.");
-    //   })
-    //   .finally(() => {
-    //     if (!controller.signal.aborted) {
-    //       setApolloLoading(false);
-    //     }
-    //   });
+        setApolloSnapshot(null);
+        setApolloError(error instanceof Error ? error.message : "Unable to load Apollo account snapshot.");
+      })
+      .finally(() => {
+        if (apolloSnapshotAbortRef.current === controller) {
+          apolloSnapshotAbortRef.current = null;
+        }
 
-    return () => {
-      controller.abort();
-    };
-  }, [client?.companyName, companyWebsiteUrl]);
+        if (!controller.signal.aborted) {
+          setApolloLoading(false);
+        }
+      });
+  }
 
-  useEffect(() => {
+  function handleApolloSnapshotToggle(enabled: boolean) {
+    setApolloSnapshotEnabled(enabled);
+
+    if (enabled) {
+      fetchApolloSnapshot();
+      return;
+    }
+
+    resetApolloSnapshot();
+  }
+
+  function resetApolloContactHealth() {
+    apolloContactHealthAbortRef.current?.abort();
+    apolloContactHealthAbortRef.current = null;
+    setApolloContactHealth(null);
+    setApolloContactHealthError(null);
+    setApolloContactHealthLoading(false);
+  }
+
+  function fetchApolloHealth() {
     if (!client?.companyName || contacts.length === 0) {
       setApolloContactHealth(null);
       setApolloContactHealthError(null);
@@ -531,7 +707,9 @@ export default function ClientProfile() {
       return;
     }
 
+    apolloContactHealthAbortRef.current?.abort();
     const controller = new AbortController();
+    apolloContactHealthAbortRef.current = controller;
     setApolloContactHealthLoading(true);
     setApolloContactHealthError(null);
 
@@ -550,9 +728,9 @@ export default function ClientProfile() {
           title: contact.title,
           email: contact.email,
           phone: contact.phone,
-          linkedIn: contact.linkedIn
-        }))
-      })
+          linkedIn: contact.linkedIn,
+        })),
+      }),
     })
       .then(async (response) => {
         const payload = await response.json() as ApolloContactHealthResponse;
@@ -571,15 +749,34 @@ export default function ClientProfile() {
         setApolloContactHealthError(error instanceof Error ? error.message : "Unable to load Apollo contact health.");
       })
       .finally(() => {
+        if (apolloContactHealthAbortRef.current === controller) {
+          apolloContactHealthAbortRef.current = null;
+        }
+
         if (!controller.signal.aborted) {
           setApolloContactHealthLoading(false);
         }
       });
+  }
 
-    return () => {
-      controller.abort();
-    };
-  }, [client?.companyName, companyWebsiteUrl, contacts]);
+  function handleApolloContactHealthToggle(enabled: boolean) {
+    setApolloContactHealthEnabled(enabled);
+
+    if (enabled) {
+      fetchApolloHealth();
+      return;
+    }
+
+    resetApolloContactHealth();
+  }
+
+  useEffect(() => () => {
+    apolloSnapshotAbortRef.current?.abort();
+  }, []);
+
+  useEffect(() => () => {
+    apolloContactHealthAbortRef.current?.abort();
+  }, []);
 
   async function handleAddContact(e: React.FormEvent) {
     e.preventDefault();
@@ -935,20 +1132,34 @@ export default function ClientProfile() {
 
     setProspectStatusSaving(true);
     try {
+      let nextClientId = client.clientId ?? "";
+      let nextChecklist = onboardingChecklist;
+
       if (nextStatus === 'closed') {
         const response = await updateClient(
           client.id,
           {
             prospectStatus: toProspectStatusEnum(nextStatus),
-            clientStatus: "ONBOARDING",
+          },
+          user?.repId ?? null,
+          "Prospect status updated to closed"
+        );
+        logger.info("Updated prospect status to closed", { clientId: client.id });
+        nextClientId = response.clientId ?? client.clientId ?? "";
+        nextChecklist = response.onboardingChecklist ?? null;
+      } else if (nextStatus === "onboarding") {
+        const response = await updateClient(
+          client.id,
+          {
+            prospectStatus: toProspectStatusEnum(nextStatus),
             createdClientDate: new Date()
           },
           user?.repId ?? null,
-          'Prospect closed and moved to onboarding status'
+          "Prospect moved to onboarding"
         );
-        logger.info("Updated closed prospect to onboarding", { clientId: client.id });
-        setOnboardingChecklist(response.onboardingChecklist ?? null);
-        setStatus("onboarding");
+        logger.info("Moved prospect to onboarding", { clientId: client.id });
+        nextClientId = response.clientId ?? client.clientId ?? "";
+        nextChecklist = response.onboardingChecklist ?? null;
       }
       else {
         await updateClient(
@@ -960,15 +1171,23 @@ export default function ClientProfile() {
           `Prospect status changed from ${client.prospectStatus} to ${nextStatus}`
         );
       }
-      const previousStatus = prospectStatus;
+      setDisplayClientId(nextClientId);
+      setOnboardingChecklist(nextChecklist);
       setProspectStatus(nextStatus);
+      setStatus(getDisplayStatus(client.clientStatus, nextStatus));
+      setClient((current) => current ? {
+        ...current,
+        clientId: nextClientId || current.clientId,
+        prospectStatus: nextStatus,
+        onboardingChecklist: nextChecklist ?? current.onboardingChecklist,
+      } : current);
       setShowProspectStatusDropdown(false);
       showToast(`Prospect status updated to ${formatLabel(nextStatus)}`);
     } catch (error) {
-      logger.error("Failed to save prospect status", {
-        clientId: client?.id,
-        nextStatus,
-        error
+        logger.error("Failed to save prospect status", {
+          clientId: client?.id,
+          nextStatus,
+          error
       });
       showToast(error instanceof Error ? error.message : "Unable to update prospect status.");
     } finally {
@@ -1010,6 +1229,14 @@ export default function ClientProfile() {
   const statusCfg = STATUS_CONFIG[status];
   const StatusIcon = statusCfg.icon;
   const prospectStatusCfg = PROSPECT_STATUS_CONFIG[prospectStatus];
+  const integrationName = client.metadata?.integration?.trim() ?? "";
+  const integrationHealthStatus = !integrationName
+    ? null
+    : onboardingChecklist?.integration_setup
+      ? "integrated"
+      : prospectStatus === "onboarding"
+        ? "in_progress"
+        : "broken";
   const relatedTasks = client ? tasks.filter(task => task.associatedCompanyId === client.id) : [];
 
   async function toggleRelatedTask(id: string) {
@@ -1038,6 +1265,7 @@ export default function ClientProfile() {
   }
 
   const apolloStatusMessage = (() => {
+    if (!apolloSnapshotEnabled) return "Turn on Apollo to load account insights here.";
     if (apolloLoading) return "Loading Apollo account data...";
     if (apolloError) return apolloError;
     if (!apolloSnapshot?.configured) return "Add your Apollo API key in the server env to load account insights here.";
@@ -1090,6 +1318,20 @@ export default function ClientProfile() {
           onSave={handleSaveEditedContact}
         />
       )}
+      <EditClientInformationModal
+        open={showClientInformationModal}
+        form={clientInformationForm}
+        saving={clientInformationSaving}
+        onChange={setClientInformationForm}
+        onOpenChange={(open) => {
+          if (clientInformationSaving) return;
+          setShowClientInformationModal(open);
+          if (!open) {
+            setClientInformationForm(createClientInformationForm(client));
+          }
+        }}
+        onSave={handleSaveClientInformation}
+      />
       {contactPendingDelete && (
         <DeleteContactConfirmModal
           contact={contactPendingDelete}
@@ -1192,7 +1434,7 @@ export default function ClientProfile() {
         {/* Status button */}
         <button
           onClick={() => setShowStatusModal(true)}
-          disabled={client.clientStatus === 'prospecting'}
+          disabled={isPipelineStatus(client.clientStatus, client.prospectStatus)}
           className={cn(
             "group inline-flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all shadow-sm hover:shadow-md",
             statusCfg.badge,
@@ -1206,7 +1448,7 @@ export default function ClientProfile() {
           <ChevronDown className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
         </button>
 
-        {status === "prospecting" && (
+        {isPipelineStatus(status, prospectStatus) && (
           <div className="relative" ref={prospectStatusDropdownRef}>
             <button
               onClick={() => !prospectStatusSaving && setShowProspectStatusDropdown((value) => !value)}
@@ -1297,13 +1539,51 @@ export default function ClientProfile() {
         <TabsList className="h-auto w-full justify-start overflow-x-auto rounded-lg border border-border bg-card p-1 sm:w-auto">
           <TabsTrigger value="details" className="rounded-md px-4 py-2">Details</TabsTrigger>
           <TabsTrigger value="reporting" className="rounded-md px-4 py-2">Reporting</TabsTrigger>
+          <TabsTrigger value="portfolio" className="rounded-md px-4 py-2">Portfolio</TabsTrigger>
           <TabsTrigger value="metrics" className="rounded-md px-4 py-2">Metrics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="mt-0 space-y-8">
-          {status === "onboarding" && onboardingChecklist && displayClientId && (
-            <OnboardingWidget checklist={onboardingChecklist} clientId={displayClientId} />
+       
+
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {(prospectStatus === "onboarding" && onboardingChecklist && displayClientId) ? (
+              <OnboardingWidget checklist={onboardingChecklist} clientId={displayClientId} />
+            ) : (
+              <ClientInformationWidget
+                client={client}
+                onEdit={() => {
+                  setClientInformationForm(createClientInformationForm(client));
+                  setShowClientInformationModal(true);
+                }}
+              />
+            )}
+            <IntegrationHealthWidget
+              integration={client.metadata?.integration}
+              status={integrationHealthStatus}
+            />
+          </div>
+          
+          {hasExtended && myClient && (
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-4 lg:gap-6">
+              <DetailCard icon={BarChart2} label="Total Placements" value={(myClient.totalPlacements ?? 0).toString()} color="text-amber-600" bg="bg-amber-100" />
+              <DetailCard icon={BarChart2} label="Placements This Year" value={myClient.placementsThisYear.toLocaleString()} color="text-orange-600" bg="bg-orange-100" />
+              <DetailCard icon={Percent} label="Recovery Rate" value={`${myClient.recoveryRate.toFixed(1)}%`} color="text-teal-600" bg="bg-teal-100" />
+              <div className="min-w-0 bg-card rounded-xl p-3 border border-border shadow-sm flex items-center gap-2.5 hover-elevate sm:rounded-2xl sm:p-5 sm:gap-4 lg:p-6 lg:gap-5">
+                <div className="w-9 h-9 rounded-lg bg-sky-100 flex items-center justify-center flex-shrink-0 sm:w-12 sm:h-12 sm:rounded-xl lg:w-14 lg:h-14 lg:rounded-2xl">
+                  <Building2 className="w-4 h-4 text-sky-600 sm:w-6 sm:h-6 lg:w-7 lg:h-7" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium text-muted-foreground leading-tight sm:text-sm">Bucket</p>
+                  <span className={cn("inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold mt-1 sm:w-10 sm:h-10 sm:text-lg", bucketColors[myClient.bucket] ?? "bg-muted text-muted-foreground")}>
+                    {myClient.bucket}
+                  </span>
+                </div>
+              </div>
+            </div>
           )}
+        </div>
 
           {/* ── 1. CONTACTS (top) ───────────────────────────────────────── */}
           <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
@@ -1372,6 +1652,8 @@ export default function ClientProfile() {
               </div>
             </form>
           )}
+
+          
 
           {/* Contacts list */}
           <div className="divide-y divide-border/40">
@@ -1459,40 +1741,8 @@ export default function ClientProfile() {
             })}
           </div>
         </div>
-
-        {/* ── 2. DETAIL STAT CARDS ───────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:gap-6">
-          <DetailCard icon={MapPin} label="Headquarters" value={client.headquarters} color="text-blue-600" bg="bg-blue-100" />
-          <DetailCard icon={Building2} label="Unit Count" value={client.unitCount.toLocaleString()} color="text-indigo-600" bg="bg-indigo-100" />
-          {!isProspectView && (
-            <DetailCard icon={Hash} label="Client ID" value={client.clientId} color="text-slate-600" bg="bg-slate-100" mono />
-          )}
-          {!isProspectView && (
-            <DetailCard icon={TrendingUp} label="First Placement" value={formatMonthYear(client.firstPlacementDate)} color="text-violet-600" bg="bg-violet-100" />
-          )}
-          {!isProspectView && (
-            <DetailCard icon={TrendingUp} label="Last Placement" value={formatMonthYear(client.lastPlacementDate)} color="text-pink-600" bg="bg-pink-100" />
-          )}
-          {hasExtended && myClient && (
-            <>
-              <DetailCard icon={BarChart2} label="Total Placements" value={(myClient.totalPlacements ?? 0).toString()} color="text-amber-600" bg="bg-amber-100" />
-              <DetailCard icon={BarChart2} label="Placements This Year" value={myClient.placementsThisYear.toLocaleString()} color="text-orange-600" bg="bg-orange-100" />
-              <DetailCard icon={Percent} label="Recovery Rate" value={`${myClient.recoveryRate.toFixed(1)}%`} color="text-teal-600" bg="bg-teal-100" />
-              <div className="min-w-0 bg-card rounded-xl p-3 border border-border shadow-sm flex items-center gap-2.5 hover-elevate sm:rounded-2xl sm:p-5 sm:gap-4 lg:p-6 lg:gap-5">
-                <div className="w-9 h-9 rounded-lg bg-sky-100 flex items-center justify-center flex-shrink-0 sm:w-12 sm:h-12 sm:rounded-xl lg:w-14 lg:h-14 lg:rounded-2xl">
-                  <Building2 className="w-4 h-4 text-sky-600 sm:w-6 sm:h-6 lg:w-7 lg:h-7" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] font-medium text-muted-foreground leading-tight sm:text-sm">Bucket</p>
-                  <span className={cn("inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-bold mt-1 sm:w-10 sm:h-10 sm:text-lg", bucketColors[myClient.bucket] ?? "bg-muted text-muted-foreground")}>
-                    {myClient.bucket}
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
+      
+{!isProspectView &&
         <ClientMetadataWidget
           metadata={metadataForm}
           editing={metadataEditing}
@@ -1507,11 +1757,13 @@ export default function ClientProfile() {
           }}
           onChange={updateMetadataForm}
           onSave={handleSaveMetadata}
-        />
-
+        />}
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ApolloAccountSnapshot
           snapshot={apolloSnapshot}
           statusMessage={apolloStatusMessage}
+          enabled={apolloSnapshotEnabled}
+          onToggle={handleApolloSnapshotToggle}
         />
 
         <ApolloContactHealthWidget
@@ -1519,21 +1771,26 @@ export default function ClientProfile() {
           entries={contactHealthEntries}
           loading={apolloContactHealthLoading}
           error={apolloContactHealthError}
+          enabled={apolloContactHealthEnabled}
+          onToggle={handleApolloContactHealthToggle}
           contactsMissingEmail={contactsMissingEmail}
           contactsMissingPhone={contactsMissingPhone}
           contactsMissingLinkedIn={contactsMissingLinkedIn}
           enrichableFields={enrichableFields}
         />
-
+</div>
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <RelatedTasksWidget
           tasks={relatedTasks}
           isProspectView={isProspectView}
           onAddTask={() => setShowAddTaskModal(true)}
           onToggleTask={toggleRelatedTask}
         />
+<NotesWidget />
+        
+        </div>
 
-        <AccountHistoryWidget history={history} />
-
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <LinkedInUpdatesCard
           companyLinkedInUrl={companyLinkedInUrl}
           posts={linkedInPosts}
@@ -1548,16 +1805,23 @@ export default function ClientProfile() {
           description={`Recent sent messages matched to the ${client.companyName} contact email list.`}
           emptyMessage="No recent sent Outlook emails matched this client's contact emails."
         />
+        </div>
 
           {/* ── 6. NOTES + AUDIT LOG (side by side) ────────────────────── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <NotesWidget />
+          <AccountHistoryWidget history={history} />
             <AuditLogWidget clientId={client.id} />
           </div>
         </TabsContent>
 
         <TabsContent value="reporting" className="mt-0">
-          <ClientReportingStats client={client} />
+          <div className="space-y-6">
+            <ClientReportingStats client={client} />
+            <ClientReportingTable client={client} />
+          </div>
+        </TabsContent>
+        <TabsContent value="portfolio" className="mt-0">
+          <ClientPortfolioHierarchy />
         </TabsContent>
         <TabsContent value="metrics" className="mt-0">
           <ClientPlacementMetricsWidget client={client} />
