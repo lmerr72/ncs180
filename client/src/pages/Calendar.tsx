@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { getClients } from "@/services/clientService";
 import CustomSelect from "@/components/shared/CustomSelect";
+import { ModalContainer } from "@/components/shared/ModalContainer";
 import type { Client } from "@/types/api";
 
 /* ─── Timezone helpers ─── */
@@ -597,23 +598,17 @@ export default function CalendarPage() {
       {showModal && createPortal(
         <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 px-4"
           onClick={() => setShowModal(false)}>
-          <div className="bg-card rounded-2xl border border-border shadow-2xl w-full max-w-md overflow-hidden"
-            onClick={e => e.stopPropagation()}>
-
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-border/50">
-              <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                <CalendarIcon className="w-5 h-5 text-primary" />
-                Add to Calendar
-              </h2>
-              <button onClick={() => setShowModal(false)}
-                className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Type tabs */}
-            <div className="flex border-b border-border/50 bg-muted/20">
+          <div className="w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <ModalContainer
+              title="Add to Calendar"
+              icon={<CalendarIcon className="w-5 h-5 text-primary" />}
+              onClose={() => setShowModal(false)}
+              className="max-w-md"
+              bodyClassName="p-0"
+              secondaryAction={{ label: "Cancel", onClick: () => setShowModal(false) }}
+              primaryAction={{ label: "Add to Calendar", onClick: saveEntry, disabled: !form.title.trim() }}
+            >
+              <div className="flex border-b border-border/50 bg-muted/20">
               {(["meeting", "block", "dayoff"] as EntryType[]).map(type => {
                 const cfg = TYPE_CONFIG[type];
                 return (
@@ -627,10 +622,9 @@ export default function CalendarPage() {
                   </button>
                 );
               })}
-            </div>
+              </div>
 
-            {/* Form */}
-            <div className="p-6 flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+              <div className="p-6 flex flex-col gap-4">
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5 block">
                   {modalType === "dayoff" ? "Label" : "Title"}
@@ -738,19 +732,8 @@ export default function CalendarPage() {
                 {modalType === "block"   && <><Ban      className="w-3.5 h-3.5" /> Blocked time – will show in amber</>}
                 {modalType === "dayoff"  && <><Umbrella className="w-3.5 h-3.5" /> Day off – will show in rose</>}
               </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-end gap-3 px-6 pb-6">
-              <button onClick={() => setShowModal(false)}
-                className="px-5 py-2.5 rounded-xl border-2 border-border text-sm font-semibold hover:bg-muted transition-colors">
-                Cancel
-              </button>
-              <button onClick={saveEntry} disabled={!form.title.trim()}
-                className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed">
-                Add to Calendar
-              </button>
-            </div>
+              </div>
+            </ModalContainer>
           </div>
         </div>,
         document.body

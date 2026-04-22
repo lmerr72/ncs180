@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X, ChevronRight, ChevronLeft, Wand2, Check, Building2, AlertTriangle, Search, TrendingUp } from "lucide-react";
 import CustomSelect from "@/components/shared/CustomSelect";
+import { ModalContainer } from "@/components/shared/ModalContainer";
 import { cn } from "@/lib/utils";
 import {
   MOCK_USER, STATE_TERRITORIES, REP_KEY_TO_ID, REP_DETAILS, type ProspectStatus,
@@ -42,6 +43,7 @@ export interface SeedResult {
 
 interface Props {
   onClose: () => void;
+  onSuccess?: () => void | Promise<void>;
 }
 
 type WizardMode = "client" | "prospect";
@@ -103,6 +105,10 @@ function CompanyTypeahead({ value, onChange, companyNames, mode }: CompanyTypeah
   const hasSuggestions = suggestions.length > 0 && open && !exactMatch;
   const showNoMatch = trimmed.length >= 2 && open && suggestions.length === 0 && !exactMatch;
 
+  function handleCreateNewSelection() {
+    setOpen(false);
+  }
+
   useEffect(() => {
     if (!open) return;
     function handleClick(event: MouseEvent) {
@@ -128,6 +134,19 @@ function CompanyTypeahead({ value, onChange, companyNames, mode }: CompanyTypeah
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+
+            if (exactMatch) {
+              event.preventDefault();
+              return;
+            }
+
+            if (mode === "prospect" && showNoMatch) {
+              event.preventDefault();
+              handleCreateNewSelection();
+            }
+          }}
           className={cn(
             inputCls,
             "pl-9",
@@ -175,7 +194,7 @@ function CompanyTypeahead({ value, onChange, companyNames, mode }: CompanyTypeah
           <button
             type="button"
             onMouseDown={(event) => event.preventDefault()}
-            onClick={() => setOpen(false)}
+            onClick={handleCreateNewSelection}
             className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-left hover:bg-primary/5 transition-colors group"
           >
             <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
@@ -297,7 +316,7 @@ function toProspectStatusValue(
   }
 }
 
-function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
+function SharedClientWizard({ onClose, onSuccess, mode }: Props & { mode: WizardMode }) {
   const { user: currentUser } = useAuth();
   const [allClients, setAllClients] = useState<Client[]>([]);
   const [reps, setReps] = useState<UserProfile[]>([]);
@@ -444,6 +463,7 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
         }, auditAuthor, auditRepId);
       }
 
+      await onSuccess?.();
       setSubmitted(true);
     } catch (error) {
       setSaveError(error instanceof Error
@@ -804,12 +824,12 @@ function SharedClientWizard({ onClose, mode }: Props & { mode: WizardMode }) {
   );
 }
 
-export function AddClientWizard({ onClose }: Props) {
-  return <SharedClientWizard onClose={onClose} mode="client" />;
+export function AddClientWizard({ onClose, onSuccess }: Props) {
+  return <SharedClientWizard onClose={onClose} onSuccess={onSuccess} mode="client" />;
 }
 
-export function CreateProspectWizard({ onClose }: Props) {
-  return <SharedClientWizard onClose={onClose} mode="prospect" />;
+export function CreateProspectWizard({ onClose, onSuccess }: Props) {
+  return <SharedClientWizard onClose={onClose} onSuccess={onSuccess} mode="prospect" />;
 }
 
 export const inputCls = "w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background placeholder-gray-300 text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all";
@@ -848,25 +868,15 @@ export function WizardOverlay({ children, onClose, title, icon }: {
 }) {
   return createPortal(
     <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 px-4" onClick={onClose}>
-      <div
-        className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] overflow-y-auto"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border/50">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
-              {icon ?? <Building2 className="w-4 h-4 text-primary" />}
-            </div>
-            <h2 className="text-lg font-bold text-foreground">{title ?? "Add New Client"}</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
+      <div className="w-full max-w-lg" onClick={(event) => event.stopPropagation()}>
+        <ModalContainer
+          title={title ?? "Add New Client"}
+          icon={<div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10">{icon ?? <Building2 className="w-4 h-4 text-primary" />}</div>}
+          onClose={onClose}
+          className="max-w-lg"
+        >
+          {children}
+        </ModalContainer>
       </div>
     </div>,
     document.body

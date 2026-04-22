@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
 import CustomSelect from "@/components/shared/CustomSelect";
+import { ModalContainer } from "@/components/shared/ModalContainer";
 import { ImportanceOptions } from "@/types/constants";
 import type { Importance, TaskType } from "@/types/api";
 
@@ -37,33 +37,25 @@ export function AddTaskModal({
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 px-4" onClick={onClose}>
-      <div
-        className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border/50">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">Create Task</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{companyName}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="px-6 py-5 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="fixed inset-0 z-[200] flex items-start justify-center bg-black/60 px-4 pt-16 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-lg" onClick={(event) => event.stopPropagation()}>
+        <ModalContainer
+          title="Create Task"
+          description={companyName}
+          onClose={onClose}
+          className="max-w-lg"
+          bodyClassName="space-y-4"
+          secondaryAction={{ label: "Cancel", onClick: onClose }}
+          primaryAction={{ label: "Create Task", onClick: handleSave, disabled: !isValid }}
+        >
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Task Type
               </label>
               <CustomSelect
                 value={taskType}
-                onChange={value => setTaskType(value as TaskType)}
+                onChange={(value) => setTaskType(value as TaskType)}
                 options={(["Prospecting", "Follow-Up", "Training", "Other"] as TaskType[]).map((option) => ({
                   value: option,
                   label: option,
@@ -72,12 +64,12 @@ export function AddTaskModal({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Criticality
               </label>
               <CustomSelect
                 value={importance}
-                onChange={value => setImportance(value as Importance)}
+                onChange={(value) => setImportance(value as Importance)}
                 options={ImportanceOptions.map((option) => ({
                   value: option,
                   label: option,
@@ -87,48 +79,30 @@ export function AddTaskModal({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Due Date
             </label>
             <input
               type="date"
               value={dueDate}
-              onChange={e => setDueDate(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
+              onChange={(event) => setDueDate(event.target.value)}
+              className="w-full rounded-xl border-2 border-border bg-background px-3.5 py-2.5 text-sm transition-all focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Notes
             </label>
             <textarea
               value={notes}
-              onChange={e => setNotes(e.target.value)}
+              onChange={(event) => setNotes(event.target.value)}
               placeholder="Add context for the task..."
               rows={5}
-              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm resize-none focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
+              className="w-full resize-none rounded-xl border-2 border-border bg-background px-3.5 py-2.5 text-sm transition-all focus:border-primary focus:outline-none focus:ring-4 focus:ring-primary/10"
             />
           </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/50 bg-muted/10">
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!isValid}
-            className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Create Task
-          </button>
-        </div>
+        </ModalContainer>
       </div>
     </div>,
     document.body,

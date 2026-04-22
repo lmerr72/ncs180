@@ -72,7 +72,7 @@ export function ClientInformationWidget({ client, onEdit }: ClientInformationWid
       </div>
 
       <div className="grid grid-cols-1 gap-4 px-6 py-5 md:grid-cols-2">
-        <StatCard icon={Building2} label="Unit Count" value={client.unitCount.toLocaleString()} />
+        <StatCard icon={Building2} label="Unit Count" value={client.unitCount ? client.unitCount.toLocaleString(): '-'} />
         <StatCard icon={MapPin} label="Address" value={formatFullAddress(client)} />
         <StatCard icon={CalendarRange} label="First File Placed" value={formatDisplayDate(client.firstFilePlacementDate)} />
         <StatCard icon={CalendarRange} label="Last File Placed" value={formatDisplayDate(client.mostRecentFilePlacementDate)} />

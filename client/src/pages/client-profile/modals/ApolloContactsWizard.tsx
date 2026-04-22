@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
-import { Check, Mail, MapPin, Phone, X } from "lucide-react";
+import { Check, Mail, MapPin, Phone } from "lucide-react";
 import { LinkedInIcon } from "@/components/shared/LinkedInUpdatesCard";
+import { ModalContainer } from "@/components/shared/ModalContainer";
 import { formatApolloContactName } from "@/helpers/formatters";
 import { cn } from "@/lib/utils";
 
@@ -45,25 +46,22 @@ export function ApolloContactsWizard({
   const selectedCount = candidates.filter((candidate) => candidate.selected && !candidate.alreadyExists).length;
 
   return createPortal(
-    <div className="fixed inset-0 z-[205] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-12 px-4" onClick={onClose}>
-      <div
-        className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border/50">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">Apollo Contact Matches</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{companyName}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+    <div className="fixed inset-0 z-[205] flex items-start justify-center bg-black/60 px-4 pt-12 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-4xl" onClick={(event) => event.stopPropagation()}>
+        <ModalContainer
+          title="Apollo Contact Matches"
+          description={companyName}
+          onClose={onClose}
+          className="max-w-4xl"
+          bodyClassName="space-y-4"
+          footerStart={<p className="text-sm text-muted-foreground">{selectedCount} selected</p>}
+          secondaryAction={{ label: "Cancel", onClick: onClose }}
+          primaryAction={{
+            label: saving ? "Adding..." : "Add selected",
+            onClick: onSave,
+            disabled: saving || selectedCount === 0,
+          }}
+        >
           {warnings.length > 0 && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               {warnings.join(" ")}
@@ -89,22 +87,24 @@ export function ApolloContactsWizard({
                   className={cn(
                     "w-full rounded-2xl border p-4 text-left transition-all",
                     candidate.alreadyExists
-                      ? "border-border bg-muted/20 opacity-70 cursor-not-allowed"
+                      ? "cursor-not-allowed border-border bg-muted/20 opacity-70"
                       : candidate.selected
                         ? "border-primary bg-primary/5 shadow-sm"
                         : "border-border bg-background hover:border-primary/40 hover:bg-primary/5"
                   )}
                 >
                   <div className="flex items-start gap-4">
-                    <div className={cn(
-                      "mt-0.5 flex h-5 w-5 items-center justify-center rounded-md border",
-                      candidate.selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-transparent",
-                      candidate.alreadyExists && "border-border bg-muted text-muted-foreground"
-                    )}>
+                    <div
+                      className={cn(
+                        "mt-0.5 flex h-5 w-5 items-center justify-center rounded-md border",
+                        candidate.selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background text-transparent",
+                        candidate.alreadyExists && "border-border bg-muted text-muted-foreground"
+                      )}
+                    >
                       <Check className="w-3.5 h-3.5" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-semibold text-foreground">
                           {formatApolloContactName(candidate)}
                         </p>
@@ -118,12 +118,14 @@ export function ApolloContactsWizard({
                             Selected
                           </span>
                         )}
-                        <span className={cn(
-                          "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-                          candidate.emailStatus === "enriched" && "border-blue-200 bg-blue-50 text-blue-700",
-                          candidate.emailStatus === "available" && "border-emerald-200 bg-emerald-50 text-emerald-700",
-                          (!candidate.emailStatus || candidate.emailStatus === "missing") && "border-amber-200 bg-amber-50 text-amber-700"
-                        )}>
+                        <span
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                            candidate.emailStatus === "enriched" && "border-blue-200 bg-blue-50 text-blue-700",
+                            candidate.emailStatus === "available" && "border-emerald-200 bg-emerald-50 text-emerald-700",
+                            (!candidate.emailStatus || candidate.emailStatus === "missing") && "border-amber-200 bg-amber-50 text-amber-700"
+                          )}
+                        >
                           {candidate.emailStatus === "enriched"
                             ? "Email enriched"
                             : candidate.emailStatus === "available"
@@ -137,17 +139,20 @@ export function ApolloContactsWizard({
                       <div className="mt-3 flex flex-wrap gap-2">
                         {candidate.email && (
                           <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-3 py-1.5 text-xs font-medium text-foreground">
-                            <Mail className="w-3.5 h-3.5" />{candidate.email}
+                            <Mail className="w-3.5 h-3.5" />
+                            {candidate.email}
                           </span>
                         )}
                         {candidate.phone && (
                           <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-3 py-1.5 text-xs font-medium text-foreground">
-                            <Phone className="w-3.5 h-3.5" />{candidate.phone}
+                            <Phone className="w-3.5 h-3.5" />
+                            {candidate.phone}
                           </span>
                         )}
                         {candidate.linkedIn && (
                           <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-muted/20 px-3 py-1.5 text-xs font-medium text-foreground">
-                            <LinkedInIcon className="w-3.5 h-3.5 text-[#0A66C2]" />LinkedIn
+                            <LinkedInIcon className="w-3.5 h-3.5 text-[#0A66C2]" />
+                            LinkedIn
                           </span>
                         )}
                         {(candidate.city || candidate.state) && (
@@ -163,28 +168,7 @@ export function ApolloContactsWizard({
               ))}
             </div>
           )}
-        </div>
-
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-border/50 bg-muted/10">
-          <p className="text-sm text-muted-foreground">{selectedCount} selected</p>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={saving || selectedCount === 0}
-              className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {saving ? "Adding..." : "Add selected"}
-            </button>
-          </div>
-        </div>
+        </ModalContainer>
       </div>
     </div>,
     document.body

@@ -1,14 +1,11 @@
 import { useMemo, useState } from "react";
 import { BarChart2, CalendarDays, Check, FileText, Gauge, TrendingUp } from "lucide-react";
 import type { Client } from "@/types/api";
+import { ModalContainer } from "@/components/shared/ModalContainer";
 import CustomSelect from "@/components/shared/CustomSelect";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -234,15 +231,15 @@ export function ClientReportingStats({ client }: { client: Client }) {
       </div>
 
       <Dialog open={showReportModal} onOpenChange={setShowReportModal}>
-        <DialogContent className="sm:max-w-md rounded-2xl border-border p-0 overflow-hidden">
-          <DialogHeader className="px-6 pt-6 pb-2">
-            <DialogTitle className="text-xl font-display font-bold">Generate Report</DialogTitle>
-            <DialogDescription>
-              Choose the report type for {client.companyName}.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="px-6 py-5">
+        <DialogContent className="sm:max-w-md border-none bg-transparent p-0 shadow-none [&>button]:hidden">
+          <ModalContainer
+            title="Generate Report"
+            description={`Choose the report type for ${client.companyName}.`}
+            onClose={() => setShowReportModal(false)}
+            primaryAction={{ label: "Generate Report", onClick: () => setShowReportModal(false) }}
+            secondaryAction={{ label: "Cancel", onClick: () => setShowReportModal(false) }}
+            bodyClassName="space-y-5"
+          >
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Report Type
             </label>
@@ -252,24 +249,7 @@ export function ClientReportingStats({ client }: { client: Client }) {
               options={REPORT_TYPES}
               placeholder="Select a report type"
             />
-          </div>
-
-          <DialogFooter className="border-t border-border bg-muted/10 px-6 py-4">
-            <button
-              type="button"
-              onClick={() => setShowReportModal(false)}
-              className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowReportModal(false)}
-              className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Generate Report
-            </button>
-          </DialogFooter>
+          </ModalContainer>
         </DialogContent>
       </Dialog>
     </div>

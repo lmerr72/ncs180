@@ -1,8 +1,9 @@
 import { formatLabel } from "@/helpers/formatters";
 import CustomSelect from "@/components/shared/CustomSelect";
+import { ModalContainer } from "@/components/shared/ModalContainer";
 import { cn } from "@/lib/utils";
 import { ClientStatus } from "@/types/api";
-import { Check, CircleOff, X } from "lucide-react";
+import { Check, CircleOff } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import { STATUS_CONFIG } from "../constants";
@@ -37,29 +38,23 @@ export function StatusModal({
       onSave(selected, reason || undefined, notes || undefined);
     }
   
-    return createPortal(
-      <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 px-4" onClick={onClose}>
-        <div
-          className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-          onClick={e => e.stopPropagation()}
-        >
-          {/* Modal header */}
-          <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border/50">
-            <div>
-              <h2 className="text-lg font-bold text-foreground">Change Client Status</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Current: <span className={cn("font-semibold", STATUS_CONFIG[current].badge.split(" ")[1])}>{formatLabel(current)}</span>
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-  
-          <div className="px-6 py-5 space-y-5">
+  return createPortal(
+    <div className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 px-4" onClick={onClose}>
+        <div className="w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <ModalContainer
+            title="Change Client Status"
+            description={<>Current: <span className={cn("font-semibold", STATUS_CONFIG[current].badge.split(" ")[1])}>{formatLabel(current)}</span></>}
+            onClose={onClose}
+            className="max-w-md"
+            bodyClassName="space-y-5"
+            secondaryAction={{ label: "Cancel", onClick: onClose, className: "border-none px-0 py-0 hover:bg-transparent text-muted-foreground hover:text-foreground" }}
+            primaryAction={{
+              label: "Save Status",
+              onClick: handleSave,
+              disabled: !isValid || selected === current,
+              className: "inline-flex items-center gap-2",
+            }}
+          >
             {/* Status radio options */}
             <div className="space-y-2.5">
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select Status</p>
@@ -150,22 +145,7 @@ export function StatusModal({
                 </div>
               </div>
             )}
-          </div>
-  
-          {/* Footer */}
-          <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-border/50 bg-muted/10">
-            <button onClick={onClose} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={!isValid || selected === current}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-            >
-              <Check className="w-4 h-4" />
-              Save Status
-            </button>
-          </div>
+          </ModalContainer>
         </div>
       </div>,
       document.body

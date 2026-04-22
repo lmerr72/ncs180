@@ -16,6 +16,7 @@ import UpcomingMeetings from "./UpcomingMeetings";
 import ClientHealthCheck from "./ClientHealthCheck";
 import QuarterlyGoalProgress from "./QuarterlyGoalProgress";
 import TaskList from "./TaskList";
+import DashboardWidgetContainer from "./DashboardWidgetContainer";
 import { getTasks, type ExtendedTask } from "@/services/taskService";
 
 const logger = createBrowserLogger("Dashboard");
@@ -156,13 +157,13 @@ export default function Dashboard() {
 
       <GraphqlStatusCard />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         <QuarterlyGoalProgress />
 
-        <div className="bg-card rounded-2xl border border-border shadow-sm flex flex-col hover-elevate overflow-hidden">
-          <div className="border-b border-border/50 bg-muted/20 shrink-0 px-4 py-3.5 flex items-center justify-between">
-            <span className="text-sm font-bold text-foreground">Tasks</span>
-            <div className="flex items-center gap-1.5">
+        <DashboardWidgetContainer
+          title="Tasks"
+          headerActions={(
+            <>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -209,11 +210,11 @@ export default function Dashboard() {
               <span className="text-xs px-1.5 py-0.5 rounded font-semibold bg-primary/10 text-primary">
                 {dashboardTasks.length}
               </span>
-            </div>
-          </div>
-
+            </>
+          )}
+        >
           <TaskList tasks={dashboardTasks} />
-        </div>
+        </DashboardWidgetContainer>
 
         <ClientHealthCheck />
         <UpcomingMeetings />

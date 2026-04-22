@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Building2, TrendingUp, Plus, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Building2, TrendingUp, Plus, ArrowUpDown, ArrowUp, ArrowDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CreateProspectWizard } from "@/components/CreateProspectWizard";
 import { Prospect,ProspectStatus } from "@/types/api";
@@ -20,7 +20,7 @@ const STATUS_STYLES: Record<ProspectStatus, string> = {
   "inactive":"bg-slate-100 text-slate-600 border-slate-200"
 };
 
-type SortField = "companyName" | "unitCount" | "prospectStatus" | null;
+type SortField = "companyName" | "unitCount" | "prospectStatus" | "createdAt" | null;
 type SortDir = "asc" | "desc";
 
 function nextSort(field: SortField, currentField: SortField, currentDir: SortDir): { field: SortField; dir: SortDir } {
@@ -41,14 +41,25 @@ export default function Pipeline() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeFilter, setActiveFilter] = useState<ProspectStatus | "All">("All");
+  const [searchTerm, setSearchTerm] = useState("");
   const [showWizard, setShowWizard] = useState(false);
-  const [sortField, setSortField] = useState<SortField>(null);
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [sortField, setSortField] = useState<SortField>("createdAt");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  async function loadProspects() {
+    setLoading(true);
+    try {
+      const nextProspects = await getProspectClients();
+      setProspects(nextProspects);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     let ignore = false;
 
-    async function loadProspects() {
+    void (async () => {
       setLoading(true);
       try {
         const nextProspects = await getProspectClients();
@@ -60,23 +71,36 @@ export default function Pipeline() {
           setLoading(false);
         }
       }
-    }
-
-    void loadProspects();
+    })();
 
     return () => {
       ignore = true;
     };
   }, []);
 
-  const filtered = activeFilter === "All"
-    ? prospects
-    : prospects.filter(p => p.prospectStatus === activeFilter);
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+  const filtered = prospects.filter((prospect) => {
+    const matchesStatus = activeFilter === "All" || prospect.prospectStatus === activeFilter;
+    const matchesSearch = normalizedSearchTerm.length === 0
+      || prospect.companyName.toLowerCase().includes(normalizedSearchTerm)
+      || prospect.dbas?.some((dba) => dba.toLowerCase().includes(normalizedSearchTerm))
+      || `${prospect.address?.city ?? ""}, ${prospect.address?.state ?? ""}`.toLowerCase().includes(normalizedSearchTerm);
+
+    return matchesStatus && matchesSearch;
+  });
 
   const filteredProspects = [...filtered].sort((a, b) => {
     if (!sortField) return 0;
-    const valA: string | number = sortField === "companyName" ? a.companyName : a.unitCount;
-    const valB: string | number = sortField === "companyName" ? b.companyName : b.unitCount;
+    const valA: string | number = sortField === "companyName"
+      ? a.companyName
+      : sortField === "createdAt"
+        ? Date.parse(a.createdAt ?? a.createdDate ?? "") || 0
+        : a.unitCount;
+    const valB: string | number = sortField === "companyName"
+      ? b.companyName
+      : sortField === "createdAt"
+        ? Date.parse(b.createdAt ?? b.createdDate ?? "") || 0
+        : b.unitCount;
 
     if (typeof valA === "string" && typeof valB === "string") {
       return sortDir === "asc" ? valA.localeCompare(valB) : valB.localeCompare(valA);
@@ -158,6 +182,19 @@ export default function Pipeline() {
             ))}
           </div>
 
+          <div className="px-5 py-4 border-b border-border/50 bg-card">
+            <div className="relative max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search prospects..."
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="w-full rounded-xl border border-border bg-background py-2.5 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+            </div>
+          </div>
+
           {/* Table */}
           <div className="max-h-[65vh] overflow-x-auto overflow-y-auto">
             <table className="w-full text-left border-collapse">
@@ -220,7 +257,11 @@ export default function Pipeline() {
 
             {filteredProspects.length === 0 && (
               <div className="py-16 text-center text-muted-foreground text-sm">
-                {loading ? "Loading prospects..." : `No prospects with status "${activeFilter}"`}
+                {loading
+                  ? "Loading prospects..."
+                  : normalizedSearchTerm
+                    ? `No prospects found for "${searchTerm.trim()}"`
+                    : `No prospects with status "${activeFilter}"`}
               </div>
             )}
           </div>
@@ -228,7 +269,10 @@ export default function Pipeline() {
       </div>
 
       {showWizard && (
-        <CreateProspectWizard onClose={() => setShowWizard(false)} />
+        <CreateProspectWizard
+          onClose={() => setShowWizard(false)}
+          onSuccess={loadProspects}
+        />
       )}
     </AppLayout>
   );

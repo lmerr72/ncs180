@@ -6,16 +6,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import { MapPin, Clock, Mail, ArrowLeft, ShieldCheck, Filter } from "lucide-react";
 import { cn, getAvatarColor } from "@/lib/utils";
 import type { Client, UserProfile } from "@/types/api";
 import { getClients } from "@/services/clientService";
 import { getUsersContext } from "@/services/userService";
+import { ModalContainer } from "@/components/shared/ModalContainer";
 
 type RepAccountRow = {
   id: string;
@@ -128,15 +125,23 @@ export default function SalesRepProfile() {
   return (
     <AppLayout>
       <Dialog open={showFilterModal} onOpenChange={setShowFilterModal}>
-        <DialogContent className="sm:max-w-md rounded-3xl border-border p-0 overflow-hidden">
-          <DialogHeader className="px-6 pt-6 pb-2">
-            <DialogTitle className="text-2xl font-display font-bold">Filter Accounts</DialogTitle>
-            <DialogDescription>
-              Choose whether inactive clients appear in this sales rep's account list.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="px-6 pb-6">
+        <DialogContent className="sm:max-w-md border-none bg-transparent p-0 shadow-none [&>button]:hidden">
+          <ModalContainer
+            title="Filter Accounts"
+            description="Choose whether inactive clients appear in this sales rep's account list."
+            onClose={() => setShowFilterModal(false)}
+            primaryAction={{ label: "Apply filter", onClick: applyFilters }}
+            secondaryAction={{
+              label: "Reset",
+              onClick: () => {
+                setDraftShowInactiveClients(false);
+                setShowInactiveClients(false);
+                setShowFilterModal(false);
+              },
+            }}
+            titleClassName="text-2xl"
+            bodyClassName="pt-0"
+          >
             <label className="flex items-start gap-3 rounded-2xl border border-border bg-muted/20 p-4 cursor-pointer">
               <Checkbox
                 checked={draftShowInactiveClients}
@@ -150,28 +155,7 @@ export default function SalesRepProfile() {
                 </p>
               </div>
             </label>
-          </div>
-
-          <DialogFooter className="border-t border-border bg-muted/10 px-6 py-4 sm:justify-between">
-            <button
-              type="button"
-              onClick={() => {
-                setDraftShowInactiveClients(false);
-                setShowInactiveClients(false);
-                setShowFilterModal(false);
-              }}
-              className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-            >
-              Reset
-            </button>
-            <button
-              type="button"
-              onClick={applyFilters}
-              className="inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-            >
-              Apply filter
-            </button>
-          </DialogFooter>
+          </ModalContainer>
         </DialogContent>
       </Dialog>
 

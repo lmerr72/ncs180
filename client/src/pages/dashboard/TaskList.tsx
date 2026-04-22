@@ -9,7 +9,7 @@ type TaskListProps = {
 
 export default function TaskList({ tasks }: TaskListProps) {
   return (
-    <div className="flex-1 overflow-y-auto p-2">
+    <div className="p-2">
       {tasks.length === 0 && (
         <div className="flex h-full min-h-40 flex-col items-center justify-center gap-2 px-4 py-8 text-center text-muted-foreground">
           <CheckCircle2 className="h-6 w-6 text-primary" />

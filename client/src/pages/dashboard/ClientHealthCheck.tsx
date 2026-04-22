@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { AlertTriangle, FileWarning, HeartPulse, ShieldAlert, TrendingDown } from "lucide-react";
+import DashboardWidgetContainer from "./DashboardWidgetContainer";
 
 type ClientHealthCheckItem = {
   id: string;
@@ -42,7 +43,7 @@ const MOCK_CLIENT_HEALTH_CHECKS: ClientHealthCheckItem[] = [
   {
     id: "signed-no-file",
     clientId: "health-check-4",
-    clientName: "Blue Mesa Medical",
+    clientName: "Blue Mesa Residential",
     issue: "Signed agreement, no first file",
     detail: "Agreement was signed on March 28, 2026 and onboarding is still pending.",
     icon: FileWarning,
@@ -52,17 +53,15 @@ const MOCK_CLIENT_HEALTH_CHECKS: ClientHealthCheckItem[] = [
 
 export default function ClientHealthCheck() {
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col">
-      <div className="px-4 py-3.5 border-b border-border/50 bg-muted/20 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-primary" />
-          <h2 className="text-sm font-bold text-foreground">Client Health Check</h2>
-        </div>
+    <DashboardWidgetContainer
+      title="Client Health Check"
+      icon={<AlertTriangle className="w-4 h-4 text-primary" />}
+      headerActions={(
         <span className="text-xs px-1.5 py-0.5 rounded font-semibold bg-primary/10 text-primary">
           {MOCK_CLIENT_HEALTH_CHECKS.length}
         </span>
-      </div>
-
+      )}
+    >
       <div className="divide-y divide-border/40">
         {MOCK_CLIENT_HEALTH_CHECKS.map((item) => {
           const Icon = item.icon;
@@ -81,18 +80,18 @@ export default function ClientHealthCheck() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-foreground truncate">{item.clientName}</p>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{item.detail}</p>
                     </div>
                     <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold ${item.tone}`}>
                       {item.issue}
                     </span>
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{item.detail}</p>
                 </div>
               </div>
             </Link>
           );
         })}
       </div>
-    </div>
+    </DashboardWidgetContainer>
   );
 }

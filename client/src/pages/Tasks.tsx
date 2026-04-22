@@ -7,6 +7,7 @@ import { createBrowserLogger } from "@/lib/logger";
 import type { Client, Importance, TaskType } from "@/types/api";
 import { CheckCircle2, Check, Circle, Clock, Building2, Mail, Pencil, Phone, ClipboardList, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import CustomSelect from "@/components/shared/CustomSelect";
+import { ModalContainer } from "@/components/shared/ModalContainer";
 import { cn } from "@/lib/utils";
 import { getClients } from "@/services/clientService";
 import { createTask, deleteTask, getTasks, type ExtendedTask, updateTask } from "@/services/taskService";
@@ -682,29 +683,24 @@ function TaskFormModal({
       className="fixed inset-0 z-[220] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 px-4"
       onClick={onClose}
     >
-      <div
-        className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border/50">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">{mode === "edit" ? "Edit Task" : "Create Task"}</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {mode === "edit"
-                ? "Update the task details below."
-                : "This task will be assigned to your rep profile automatically."}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="px-6 py-5 space-y-4">
+      <div className="w-full max-w-lg" onClick={(event) => event.stopPropagation()}>
+        <ModalContainer
+          title={mode === "edit" ? "Edit Task" : "Create Task"}
+          description={
+            mode === "edit"
+              ? "Update the task details below."
+              : "This task will be assigned to your rep profile automatically."
+          }
+          onClose={onClose}
+          className="max-w-lg"
+          bodyClassName="space-y-4"
+          secondaryAction={{ label: "Cancel", onClick: onClose }}
+          primaryAction={{
+            label: saving ? (mode === "edit" ? "Saving..." : "Creating...") : (mode === "edit" ? "Save changes" : "Create Task"),
+            onClick: handleSave,
+            disabled: !isValid || saving,
+          }}
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
@@ -829,25 +825,7 @@ function TaskFormModal({
               className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm resize-none focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
             />
           </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/50 bg-muted/10">
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!isValid || saving}
-            className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {saving ? (mode === "edit" ? "Saving..." : "Creating...") : (mode === "edit" ? "Save changes" : "Create Task")}
-          </button>
-        </div>
+        </ModalContainer>
       </div>
     </div>,
     document.body
@@ -867,40 +845,24 @@ function DeleteTaskConfirmModal({
 }) {
   return createPortal(
     <div className="fixed inset-0 z-[220] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-20 px-4" onClick={onClose}>
-      <div
-        className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="px-6 pt-6 pb-4 border-b border-border/50">
-          <h2 className="text-lg font-bold text-foreground">Delete Task?</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Remove <span className="font-semibold text-foreground">{task.title}</span> from your task list?
-          </p>
-        </div>
-
-        <div className="px-6 py-5">
+      <div className="w-full max-w-md" onClick={(event) => event.stopPropagation()}>
+        <ModalContainer
+          title="Delete Task?"
+          description={<>Remove <span className="font-semibold text-foreground">{task.title}</span> from your task list?</>}
+          onClose={onClose}
+          className="max-w-md"
+          secondaryAction={{ label: "Cancel", onClick: onClose }}
+          primaryAction={{
+            label: deleting ? "Deleting..." : "Delete task",
+            onClick: onConfirm,
+            disabled: deleting,
+            className: "bg-red-600 text-white hover:bg-red-700",
+          }}
+        >
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             This will permanently delete the task and its current progress.
           </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/50 bg-muted/10">
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={deleting}
-            className="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {deleting ? "Deleting..." : "Delete task"}
-          </button>
-        </div>
+        </ModalContainer>
       </div>
     </div>,
     document.body
@@ -974,25 +936,20 @@ function CreateAutomatedTaskModal({
       className="fixed inset-0 z-[230] bg-black/60 backdrop-blur-sm flex items-start justify-center pt-16 px-4"
       onClick={onClose}
     >
-      <div
-        className="relative bg-card border border-border rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border/50">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">Create Automated Task</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">This workflow will assign tasks to your current rep profile automatically.</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="px-6 py-5 space-y-4">
+      <div className="w-full max-w-2xl" onClick={(event) => event.stopPropagation()}>
+        <ModalContainer
+          title="Create Automated Task"
+          description="This workflow will assign tasks to your current rep profile automatically."
+          onClose={onClose}
+          className="max-w-2xl"
+          bodyClassName="space-y-4"
+          secondaryAction={{ label: "Cancel", onClick: onClose }}
+          primaryAction={{
+            label: saving ? "Creating..." : "Create Automated Task",
+            onClick: handleSave,
+            disabled: !isValid || saving,
+          }}
+        >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
@@ -1158,25 +1115,7 @@ function CreateAutomatedTaskModal({
               className="w-full px-3.5 py-2.5 rounded-xl border-2 border-border bg-background text-sm resize-none focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
             />
           </div>
-        </div>
-
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/50 bg-muted/10">
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center justify-center rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!isValid || saving}
-            className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {saving ? "Creating..." : "Create Automated Task"}
-          </button>
-        </div>
+        </ModalContainer>
       </div>
     </div>,
     document.body

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { MOCK_GOALS } from "@/lib/mock-data";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ArrowUpRight, BarChart3, Percent, Target } from "lucide-react";
+import DashboardWidgetContainer from "./DashboardWidgetContainer";
 import {
   Bar,
   BarChart,
@@ -21,19 +22,14 @@ export default function QuarterlyGoalProgress() {
   const [view, setView] = useState<GoalProgressView>("percent");
 
   return (
-    <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden flex flex-col relative z-0">
-      <div className="absolute top-0 right-0 h-40 w-40 rounded-full bg-primary/5 blur-3xl -z-10 translate-x-1/3 -translate-y-1/3" />
-
-      <div className="px-4 py-3.5 border-b border-border/50 bg-muted/20 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Target className="w-4 h-4 text-primary" />
-            <h2 className="text-sm font-bold text-foreground">Quarterly Goal Progress</h2>
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">Q1 Sales Targets</p>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
+    <DashboardWidgetContainer
+      title="Quarterly Goal Progress"
+      subtitle="Q1 Sales Targets"
+      icon={<Target className="w-4 h-4 text-primary" />}
+      className="relative z-0"
+      bodyClassName="p-4 flex flex-col"
+      headerActions={(
+        <>
           <ToggleGroup
             type="single"
             value={view}
@@ -59,10 +55,12 @@ export default function QuarterlyGoalProgress() {
             <ArrowUpRight className="w-3.5 h-3.5" />
             {MOCK_GOALS.trend === "on_track" ? "On Track" : MOCK_GOALS.trend}
           </div>
-        </div>
-      </div>
+        </>
+      )}
+    >
+      <div className="absolute top-0 right-0 h-40 w-40 rounded-full bg-primary/5 blur-3xl -z-10 translate-x-1/3 -translate-y-1/3" />
 
-      <div className="p-4 flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col">
         {view === "percent" ? (
           <div className="flex-1 flex flex-col items-center justify-center">
             <div className="w-full max-w-[220px] aspect-square relative">
@@ -142,6 +140,6 @@ export default function QuarterlyGoalProgress() {
           </div>
         )}
       </div>
-    </div>
+    </DashboardWidgetContainer>
   );
 }
