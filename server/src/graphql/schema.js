@@ -4,6 +4,7 @@ const typeDefs = `
     currentUser: UserProfile!
     users: [UserProfile!]!
     allClients: [Client!]!
+    repClients(assignedRepId: ID!): [Client!]!
     prospects: [Client!]!
     myClients: [Client!]!
     client(id: ID!): Client
@@ -149,6 +150,7 @@ const typeDefs = `
     assignedRepId: ID
     dbas: [String!]
     isCorporate: Boolean
+    flagged: Boolean
     website: String
     linkedIn: String
     address: AddressInput!
@@ -161,6 +163,7 @@ const typeDefs = `
     assignedRepId: ID
     dbas: [String!]
     isCorporate: Boolean
+    flagged: Boolean
     website: String
     linkedIn: String
     address: AddressInput!
@@ -198,6 +201,7 @@ const typeDefs = `
     createdClientDate: String
     address: UpdateAddressInput
     unitCount: Int
+    flagged: Boolean
     metadata: ClientMetadataInput
   }
 
@@ -271,6 +275,7 @@ const typeDefs = `
     archiveDate: String
     dbas: [String]
     isCorporate: Boolean
+    flagged: Boolean!
     corporateId: ID!
     firstFilePlacementDate: String
     mostRecentFilePlacementDate: String
@@ -296,6 +301,8 @@ const resolvers = {
       dataStore.getCurrentUser(currentUserId),
     users: async (_parent, _args, { dataStore }) => dataStore.getUsers(),
     allClients: async (_parent, _args, { dataStore }) => dataStore.getAllClients(),
+    repClients: async (_parent, { assignedRepId }, { dataStore }) =>
+      dataStore.getRepClients(assignedRepId),
     prospects: async (_parent, _args, { dataStore, currentUserId }) =>
       dataStore.getProspects(currentUserId),
     myClients: async (_parent, _args, { dataStore, currentUserId }) =>

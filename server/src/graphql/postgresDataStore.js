@@ -137,6 +137,22 @@ function createPostgresDataStore({ prisma } = {}) {
       return clients.map(mapClient);
     },
 
+    async getRepClients(assignedRepId) {
+      const prismaClient = getPrismaClient();
+      const clients = await runPrismaOperation('getRepClients', () =>
+        prismaClient.client.findMany({
+          where: {
+            assignedRepId
+          },
+          orderBy: {
+            companyName: 'asc'
+          }
+        })
+      );
+
+      return clients.map(mapClient);
+    },
+
     async getProspects(currentUserId = DEFAULT_CURRENT_USER_ID) {
       const prismaClient = getPrismaClient();
       const prospects = await runPrismaOperation('getProspects', () =>
@@ -367,6 +383,7 @@ function createPostgresDataStore({ prisma } = {}) {
             activeClientDate: new Date(),
             dbas: input.dbas ?? [],
             isCorporate: input.isCorporate ?? false,
+            flagged: input.flagged ?? false,
             corporateId: `CORP-${suffix}`,
             clientStatus: 'ACTIVE',
             prospectStatus: 'CLOSED',
@@ -407,6 +424,7 @@ function createPostgresDataStore({ prisma } = {}) {
             createdClientDate: isOnboardingProspect ? new Date() : null,
             dbas: input.dbas ?? [],
             isCorporate: input.isCorporate ?? false,
+            flagged: input.flagged ?? false,
             corporateId: `CORP-${suffix}`,
             clientStatus: 'PROSPECTING',
             prospectStatus: input.prospectStatus,
@@ -461,6 +479,7 @@ function createPostgresDataStore({ prisma } = {}) {
             clientId: onboardingProspect ? existing.clientId ?? `CLT-${suffix}` : undefined,
             createdClientDate: onboardingProspect ? existing.createdClientDate ?? new Date() : undefined,
             unitCount: input.unitCount ?? undefined,
+            flagged: input.flagged ?? undefined,
             address1: hasAddressUpdate ? input.address.address1 ?? null : undefined,
             address2: hasAddressUpdate ? input.address.address2 ?? null : undefined,
             city: hasAddressUpdate ? input.address.city ?? null : undefined,

@@ -10,6 +10,7 @@ export type MyClientsFilters = {
   integration: "all" | ClientIntegration | "none";
   integrationSetup: "all" | "yes" | "no";
   taxCampaign: "all" | "yes" | "no";
+  flagged: "all" | "yes" | "no";
   minRecoveryRate: number | null;
 };
 
@@ -163,6 +164,20 @@ export function MyClientsFilterModal({
                   { value: "all", label: "All values" },
                   { value: "yes", label: "Yes" },
                   { value: "no", label: "No" },
+                ]}
+                placeholder="All values"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <span className="text-sm font-semibold text-foreground">Flagged</span>
+              <CustomSelect
+                value={filters.flagged}
+                onChange={(value) => onChange({ ...filters, flagged: value as MyClientsFilters["flagged"] })}
+                options={[
+                  { value: "all", label: "All values" },
+                  { value: "yes", label: "Flagged" },
+                  { value: "no", label: "Not flagged" },
                 ]}
                 placeholder="All values"
               />

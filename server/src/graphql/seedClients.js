@@ -37,7 +37,8 @@ const clients = [
         prelegal: true,
         integration: 'YARDI',
         tax_campaign:true
-      }
+      },
+      flagged:true
     },
     {
       id: 'my-2',

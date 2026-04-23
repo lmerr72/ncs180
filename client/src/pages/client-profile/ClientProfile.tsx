@@ -13,7 +13,7 @@ import {
   Building2, Users, BarChart2, Percent,
   Globe, Phone, ExternalLink, UserPlus, X,
   Clock, Check, ChevronDown,
-  BriefcaseBusiness, Sparkles, Pencil, Trash2,
+  BriefcaseBusiness, Sparkles, Pencil, Trash2, Flag,
 } from "lucide-react";
 import { DetailCard } from "@/components/shared/DetailCard";
 import { LinkedInIcon, LinkedInUpdatesCard, type LinkedInPostItem } from "@/components/shared/LinkedInUpdatesCard";
@@ -56,6 +56,7 @@ import {
   deleteContact,
   updateContact,
 } from "@/services/contactService";
+import { createAuditLogEntry } from "@/services/auditLogService";
 import {
   getClientById,
   getClients,
@@ -349,6 +350,7 @@ export default function ClientProfile() {
   );
   const [clientInformationSaving, setClientInformationSaving] = useState(false);
   const [showClientInformationModal, setShowClientInformationModal] = useState(false);
+  const [flagSaving, setFlagSaving] = useState(false);
   const [showProspectStatusDropdown, setShowProspectStatusDropdown] = useState(false);
   const [prospectStatusSaving, setProspectStatusSaving] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
@@ -605,11 +607,47 @@ export default function ClientProfile() {
     }
   }
 
+  async function handleToggleFlag() {
+    if (!client?.id || flagSaving) return;
+
+    const nextFlagged = !(client.flagged ?? false);
+    setFlagSaving(true);
+
+    try {
+      const updatedClient = await updateClient(
+        client.id,
+        { flagged: nextFlagged },
+        nextFlagged ? "Client flagged" : "Client flag removed"
+      );
+
+      setClient(updatedClient);
+      setAllClients((current) =>
+        current.map((entry) => entry.id === updatedClient.id ? { ...entry, ...updatedClient } : entry)
+      );
+      setAuditLogRefreshKey((current) => current + 1);
+      showToast(nextFlagged ? "Client flagged" : "Client unflagged");
+    } catch (error) {
+      logger.error("Failed to update client flag", {
+        clientId: client.id,
+        error,
+      });
+      showToast(error instanceof Error ? error.message : "Unable to update client flag.");
+    } finally {
+      setFlagSaving(false);
+    }
+  }
+
   function handleRepSelect(rep: UserProfile) {
     setAssignedRep(rep);
     setRepPending(true);
     setShowRepDropdown(false);
-    addAudit(`Reassignment requested: ${rep.firstName} ${rep.lastName}`, "update");
+    if (client?.id) {
+      void createAuditLogEntry({
+        clientId: client.id,
+        action: `Reassignment requested: ${rep.firstName} ${rep.lastName}`,
+        type: "update",
+      });
+    }
     showToast("Reassignment request sent — awaiting approval");
   }
 
@@ -1549,6 +1587,25 @@ export default function ClientProfile() {
           <p className="text-muted-foreground mt-1 text-lg font-mono">{displayClientId || "Pending client ID assignment"}</p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+          <button
+            type="button"
+            onClick={() => void handleToggleFlag()}
+            disabled={flagSaving}
+            aria-label={client.flagged ? "Unflag client" : "Flag client"}
+            title={client.flagged ? "Unflag client" : "Flag client"}
+            className={cn(
+              "inline-flex items-center justify-center rounded-xl border bg-card p-2.5 shadow-sm transition-all",
+              "hover:border-primary/40 hover:bg-muted/30",
+              flagSaving && "cursor-not-allowed opacity-70"
+            )}
+          >
+            <Flag
+              className={cn(
+                "h-5 w-5 transition-colors",
+                client.flagged ? "fill-red-500 text-red-500" : "text-muted-foreground"
+              )}
+            />
+          </button>
           {(companyWebsiteUrl || companyLinkedInUrl) && (
             <>
               {companyWebsiteUrl && (

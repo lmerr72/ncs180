@@ -81,6 +81,7 @@ model Client {
   archiveDate                 DateTime?
   dbas                        String[]
   isCorporate                 Boolean             @default(false)
+  flagged                     Boolean             @default(false)
   corporateId                 String
   firstFilePlacementDate      DateTime?
   mostRecentFilePlacementDate DateTime?

@@ -28,6 +28,7 @@ const DEFAULT_FILTERS: MyClientsFilters = {
   integration: "all",
   integrationSetup: "all",
   taxCampaign: "all",
+  flagged: "all",
   minRecoveryRate: null,
 };
 
@@ -216,6 +217,8 @@ export default function MyClients() {
       || (client.onboardingChecklist?.integration_setup ?? false) === (filters.integrationSetup === "yes");
     const taxCampaignMatches = filters.taxCampaign === "all"
       || client.metadata.tax_campaign === (filters.taxCampaign === "yes");
+    const flaggedMatches = filters.flagged === "all"
+      || (client.flagged ?? false) === (filters.flagged === "yes");
     const recoveryRateMatches = filters.minRecoveryRate === null || getClientRecoveryRate(client) >= filters.minRecoveryRate;
 
     return (
@@ -226,6 +229,7 @@ export default function MyClients() {
       && integrationMatches
       && integrationSetupMatches
       && taxCampaignMatches
+      && flaggedMatches
       && recoveryRateMatches
     );
   });
@@ -367,6 +371,9 @@ export default function MyClients() {
       : null,
     filters.taxCampaign !== "all"
       ? { key: "taxCampaign" as const, label: `Tax campaign: ${filters.taxCampaign}` }
+      : null,
+    filters.flagged !== "all"
+      ? { key: "flagged" as const, label: `Flagged: ${filters.flagged === "yes" ? "Yes" : "No"}` }
       : null,
     filters.minRecoveryRate !== null
       ? { key: "minRecoveryRate" as const, label: `Recovery >= ${filters.minRecoveryRate}%` }

@@ -121,6 +121,7 @@ export interface Prospect {
   clientStatus: ClientStatus;
   prospectStatus?: ProspectStatus;
   isCorporate?: boolean;
+  flagged?: boolean;
   website?:string;
   linkedIn?:string;
   address?: Address;

@@ -28,6 +28,12 @@ function createMockDataStore() {
       return clients.map(mapClient);
     },
 
+    async getRepClients(assignedRepId) {
+      return clients
+        .filter((client) => client.assignedRepId === assignedRepId)
+        .map(mapClient);
+    },
+
     async getProspects(currentUserId = DEFAULT_CURRENT_USER_ID) {
       return clients
         .filter(
@@ -159,6 +165,10 @@ function createMockDataStore() {
 
       if (input.unitCount !== undefined) {
         client.unitCount = input.unitCount;
+      }
+
+      if (input.flagged !== undefined) {
+        client.flagged = input.flagged;
       }
 
       if (input.address !== undefined) {

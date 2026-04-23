@@ -26,6 +26,7 @@ export type GraphqlClient = {
   archiveDate?: string | null;
   dbas?: string[] | null;
   isCorporate?: boolean | null;
+  flagged?: boolean | null;
   corporateId?: string | null;
   firstFilePlacementDate?: string | null;
   mostRecentFilePlacementDate?: string | null;
@@ -58,6 +59,14 @@ type AllClientsQueryData = {
   allClients: GraphqlClient[];
 };
 
+type RepClientsQueryData = {
+  repClients: GraphqlClient[];
+};
+
+type RepClientsQueryVariables = {
+  assignedRepId: string;
+};
+
 type ClientByIdQueryData = {
   client: GraphqlClient | null;
 };
@@ -88,6 +97,7 @@ export type ClientMutationVariables = {
     };
     contactIds?: string[];
     unitCount?: number;
+    flagged?: boolean;
     prospectStatus?: Exclude<GraphqlProspectStatus, null>;
   };
 };
@@ -108,6 +118,7 @@ export type CreateClientServiceInput = {
   };
   contactIds?: string[];
   unitCount?: number;
+  flagged?: boolean;
 };
 
 export type CreateProspectServiceInput = CreateClientServiceInput & {
@@ -134,6 +145,7 @@ export type UpdateClientMutationVariables = {
       zipCode?: string | null;
     };
     unitCount?: number;
+    flagged?: boolean;
     metadata?: Partial<ClientMetadata>;
   };
 };
@@ -150,6 +162,7 @@ export const CLIENT_FIELDS = gql`
     archiveDate
     dbas
     isCorporate
+    flagged
     corporateId
     firstFilePlacementDate
     mostRecentFilePlacementDate
@@ -218,6 +231,15 @@ export const CLIENTS_DATA_QUERY = gql`
 export const ALL_CLIENTS_QUERY = gql`
   query AllClients {
     allClients {
+      ...ClientFields
+    }
+  }
+  ${CLIENT_FIELDS}
+`;
+
+export const REP_CLIENTS_QUERY = gql`
+  query RepClients($assignedRepId: ID!) {
+    repClients(assignedRepId: $assignedRepId) {
       ...ClientFields
     }
   }
@@ -312,6 +334,7 @@ export function normalizeClient(client: GraphqlClient): Client {
     prospectStatus: toProspectStatus(client.prospectStatus),
     dbas: client.dbas ?? [],
     isCorporate: client.isCorporate ?? false,
+    flagged: client.flagged ?? false,
     website: client.website ?? "",
     linkedIn: client.linkedIn ?? "",
     address: {
@@ -367,8 +390,13 @@ export async function getClientById(id: string): Promise<Client | null> {
 export async function getRepClients(assignedRepId: string): Promise<Client[]> {
   if (!assignedRepId) return [];
 
-  const clients = await getClients();
-  return clients.filter((client) => client.assignedRepId === assignedRepId);
+  const response = await apolloClient.query<RepClientsQueryData, RepClientsQueryVariables>({
+    query: REP_CLIENTS_QUERY,
+    variables: { assignedRepId },
+    fetchPolicy: "network-only"
+  });
+
+  return response.data.repClients.map(normalizeClient);
 }
 
 export async function getProspectClients(): Promise<Client[]> {

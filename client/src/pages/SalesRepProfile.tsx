@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { MapPin, Clock, Mail, ArrowLeft, ShieldCheck, Filter } from "lucide-react";
 import { cn, getAvatarColor } from "@/lib/utils";
-import { normalizeClient } from "@/services/clientService";
+import { REP_CLIENTS_QUERY, type GraphqlClient, normalizeClient } from "@/services/clientService";
 import { SALES_REP_PROFILE_QUERY, type SalesRepProfileQueryData } from "@/services/salesRepProfileService";
 import { ModalContainer } from "@/components/shared/ModalContainer";
 
@@ -40,6 +40,14 @@ const STATUS_STYLES: Record<RepAccountRow["status"], string> = {
   onboarding: "bg-violet-100 text-violet-700 border-violet-200"
 };
 
+type RepClientsQueryData = {
+  repClients: GraphqlClient[];
+};
+
+type RepClientsQueryVariables = {
+  assignedRepId: string;
+};
+
 export default function SalesRepProfile() {
   const params = useParams();
   const [searchParams] = useSearchParams();
@@ -50,10 +58,18 @@ export default function SalesRepProfile() {
   const { data, loading, error } = useQuery<SalesRepProfileQueryData>(SALES_REP_PROFILE_QUERY, {
     skip: !params.id,
   });
-  const allClients = data?.allClients.map(normalizeClient) ?? [];
   const rep = data?.users.find((entry) => entry.id === params.id) ?? null;
+  const {
+    data: repClientsData,
+    loading: repClientsLoading,
+    error: repClientsError,
+  } = useQuery<RepClientsQueryData, RepClientsQueryVariables>(REP_CLIENTS_QUERY, {
+    variables: params.id ? { assignedRepId: params.id } : undefined,
+    skip: !params.id || !rep,
+  });
+  const repClients = repClientsData?.repClients.map(normalizeClient) ?? [];
 
-  if (loading) {
+  if (loading || (rep && repClientsLoading)) {
     return (
       <AppLayout>
         <div className="flex flex-col items-center justify-center py-24 gap-4">
@@ -72,6 +88,20 @@ export default function SalesRepProfile() {
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <p className="text-2xl font-bold text-foreground">Unable to load rep profile</p>
           <p className="text-sm text-muted-foreground">{error.message}</p>
+          <Link to="/clients" className="text-primary hover:underline text-sm font-medium">
+            ← Back to Clients
+          </Link>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (repClientsError) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <p className="text-2xl font-bold text-foreground">Unable to load rep profile</p>
+          <p className="text-sm text-muted-foreground">{repClientsError.message}</p>
           <Link to="/clients" className="text-primary hover:underline text-sm font-medium">
             ← Back to Clients
           </Link>
@@ -100,8 +130,7 @@ export default function SalesRepProfile() {
   const backLabel = fromParam
     ? fromParam.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ")
     : "Clients";
-  const clientRows: RepAccountRow[] = allClients
-    .filter((client) => client.assignedRepId === rep.id)
+  const clientRows: RepAccountRow[] = repClients
     .map((client) => ({
       id: client.id,
       companyName: client.companyName,
